@@ -1,0 +1,179 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "green", "value": 60},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 150}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "reduceOptions": {
+          "calcs": ["count"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "title": "Total Readings",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS total FROM heartbeat.heart_rate_readings;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "title": "Active Customers",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(DISTINCT customer_id) AS customers FROM heartbeat.heart_rate_readings WHERE timestamp >= NOW() - INTERVAL '1 hour';",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "red"}
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "title": "Anomalies (Last Hour)",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS anomalies FROM heartbeat.anomaly_log WHERE timestamp >= NOW() - INTERVAL '1 hour';",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "title": "Avg Heart Rate",
+      "type": "gauge",
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(AVG(heart_rate)::numeric, 1) AS avg_hr FROM heartbeat.heart_rate_readings WHERE timestamp >= NOW() - INTERVAL '1 hour';",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 40,
+          "max": 200,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "green", "value": 60},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 150}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+      "id": 5,
+      "title": "Heart Rate Over Time (All Customers)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT timestamp AS time, heart_rate, customer_id FROM heartbeat.heart_rate_readings WHERE timestamp >= NOW() - INTERVAL '1 hour' ORDER BY timestamp;",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 6,
+      "title": "Recent Anomalies",
+      "type": "table",
+      "targets": [
+        {
+          "rawSql": "SELECT al.customer_id, c.customer_name, al.heart_rate, al.anomaly_type, al.timestamp FROM heartbeat.anomaly_log al JOIN heartbeat.customers c ON al.customer_id = c.customer_id ORDER BY al.timestamp DESC LIMIT 20;",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "heartbeat-postgres"
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 7,
+      "title": "Customer Summary",
+      "type": "table",
+      "targets": [
+        {
+          "rawSql": "SELECT * FROM heartbeat.customer_summary ORDER BY anomaly_count DESC;",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["heartbeat", "monitoring"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Customer Heartbeat Monitor",
+  "uid": "heartbeat-dashboard",
+  "version": 1
+}
