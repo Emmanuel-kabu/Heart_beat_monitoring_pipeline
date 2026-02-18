@@ -1,0 +1,122 @@
+version: "3.8"
+
+services:
+  # ─── Zookeeper (required by Kafka) ───────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: heartbeat_zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - heartbeat_network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Apache Kafka ────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: heartbeat_kafka
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - heartbeat_network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── PostgreSQL Database ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: heartbeat_postgres
+    hostname: postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-heartbeat_db}
+      POSTGRES_USER: ${POSTGRES_USER:-heartbeat_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-heartbeat_pass123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - heartbeat_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-heartbeat_user} -d ${POSTGRES_DB:-heartbeat_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Grafana (Optional Dashboard) ───────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: heartbeat_grafana
+    hostname: grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - heartbeat_network
+    restart: unless-stopped
+
+# ─── Volumes ─────────────────────────────────────────────────────────
+volumes:
+  zookeeper_data:
+    driver: local
+  zookeeper_log:
+    driver: local
+  kafka_data:
+    driver: local
+  postgres_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ─── Networks ────────────────────────────────────────────────────────
+networks:
+  heartbeat_network:
+    driver: bridge
+    name: heartbeat_network
