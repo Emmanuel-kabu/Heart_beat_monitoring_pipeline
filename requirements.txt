@@ -1,0 +1,26 @@
+# ============================================================================
+# Real-Time Customer Heartbeat Monitoring System
+# Python Dependencies
+# ============================================================================
+
+# ─── Core Dependencies ──────────────────────────────────────────────────────
+confluent-kafka==2.3.0       # Kafka producer/consumer
+psycopg2-binary==2.9.9       # PostgreSQL adapter
+python-dotenv==1.0.0         # Environment variable management
+
+# ─── Data Processing ────────────────────────────────────────────────────────
+pandas==2.1.4                # Data manipulation and analysis
+
+# ─── Dashboard ──────────────────────────────────────────────────────────────
+streamlit==1.29.0            # Web dashboard framework
+
+# ─── Testing ────────────────────────────────────────────────────────────────
+pytest==7.4.3                # Testing framework
+pytest-cov==4.1.0            # Test coverage reporting
+pytest-timeout==2.2.0        # Test timeout support
+
+# ─── Code Quality ───────────────────────────────────────────────────────────
+black==23.12.1               # Code formatter
+isort==5.13.2                # Import sorter
+flake8==7.0.0                # Linter
+mypy==1.8.0                  # Static type checker
