@@ -7,15 +7,12 @@ are marked for selective execution.
 """
 
 import json
-import time
 
 import pytest
 
-from src.config import config
 from src.generator.heartbeat_generator import HeartbeatGenerator
 from src.models import HeartbeatReading
 from src.validation.validator import HeartbeatValidator
-
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -95,9 +92,9 @@ class TestEndToEndDataFlow:
         anomaly_rate = anomaly_count / len(valid)
 
         # Should be roughly 10% (allow 5-20% range for randomness)
-        assert 0.02 <= anomaly_rate <= 0.25, (
-            f"Anomaly rate {anomaly_rate:.2%} outside expected range"
-        )
+        assert (
+            0.02 <= anomaly_rate <= 0.25
+        ), f"Anomaly rate {anomaly_rate:.2%} outside expected range"
 
     def test_customer_distribution(self, generator):
         """Test that readings are distributed across all customers."""
@@ -137,7 +134,7 @@ class TestCorruptDataHandling:
         ]
         for corrupt in corrupt_strings:
             try:
-                reading = HeartbeatReading.from_json(corrupt)
+                HeartbeatReading.from_json(corrupt)
                 # If it parses, it should fail validation
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass  # Expected behavior
@@ -152,6 +149,4 @@ class TestCorruptDataHandling:
         for reading in extreme_readings:
             is_valid, error = validator.validate_structure(reading)
             # All extreme values should be rejected
-            assert is_valid is False, (
-                f"Expected rejection for HR={reading.heart_rate}"
-            )
+            assert is_valid is False, f"Expected rejection for HR={reading.heart_rate}"

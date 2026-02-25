@@ -5,7 +5,6 @@ Tests the synthetic data generation logic including normal readings,
 anomalous readings, batch generation, and customer profile handling.
 """
 
-import pytest
 from datetime import datetime
 
 from src.generator.heartbeat_generator import (
@@ -126,9 +125,9 @@ class TestHeartbeatGenerator:
         readings = gen.generate_batch(batch_size=100)
 
         for reading in readings:
-            assert 40 <= reading.heart_rate <= 200, (
-                f"Heart rate {reading.heart_rate} outside expected range"
-            )
+            assert (
+                40 <= reading.heart_rate <= 200
+            ), f"Heart rate {reading.heart_rate} outside expected range"
 
     def test_anomaly_generation(self):
         """Test that anomalies are generated when probability is high."""
@@ -136,9 +135,7 @@ class TestHeartbeatGenerator:
         readings = gen.generate_batch(batch_size=50)
 
         # With 100% anomaly probability, all should be outside normal range
-        anomalous_count = sum(
-            1 for r in readings if r.heart_rate < 50 or r.heart_rate > 150
-        )
+        anomalous_count = sum(1 for r in readings if r.heart_rate < 50 or r.heart_rate > 150)
         # Allow some tolerance due to clamping
         assert anomalous_count > 0, "Expected at least some anomalous readings"
 

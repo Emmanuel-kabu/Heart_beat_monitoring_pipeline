@@ -52,7 +52,9 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
-    console_handler.stream = open(sys.stdout.fileno(), mode='w', encoding='utf-8', errors='replace', closefd=False)
+    console_handler.stream = open(
+        sys.stdout.fileno(), mode="w", encoding="utf-8", errors="replace", closefd=False
+    )
     logger.addHandler(console_handler)
 
     # ─── Rotating File Handler ──────────────────────────────────────────

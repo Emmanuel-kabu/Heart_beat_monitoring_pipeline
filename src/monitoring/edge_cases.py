@@ -82,17 +82,23 @@ class EdgeCaseDetector:
         self._slack = slack or SlackAlerter()
         self._email = email or EmailAlerter()
 
-        self._delay_threshold = heartbeat_delay_threshold_sec or config.monitoring.heartbeat_delay_threshold_sec
-        self._failure_threshold = device_failure_threshold_sec or config.monitoring.device_failure_threshold_sec
+        self._delay_threshold = (
+            heartbeat_delay_threshold_sec or config.monitoring.heartbeat_delay_threshold_sec
+        )
+        self._failure_threshold = (
+            device_failure_threshold_sec or config.monitoring.device_failure_threshold_sec
+        )
         self._spike_delta = spike_delta_threshold or config.monitoring.spike_delta_threshold
         self._sustained_count = sustained_anomaly_count or config.monitoring.sustained_anomaly_count
-        self._sustained_window = sustained_anomaly_window_min or config.monitoring.sustained_anomaly_window_min
+        self._sustained_window = (
+            sustained_anomaly_window_min or config.monitoring.sustained_anomaly_window_min
+        )
         self._check_interval = check_interval_sec or config.monitoring.edge_check_interval_sec
 
         # Per-device tracking
-        self._last_seen: Dict[str, float] = {}           # customer_id → unix ts
-        self._last_hr: Dict[str, int] = {}               # customer_id → last heart rate
-        self._device_status: Dict[str, str] = {}          # 'ACTIVE' | 'FAILED'
+        self._last_seen: Dict[str, float] = {}  # customer_id → unix ts
+        self._last_hr: Dict[str, int] = {}  # customer_id → last heart rate
+        self._device_status: Dict[str, str] = {}  # 'ACTIVE' | 'FAILED'
         self._consecutive_errors: Dict[str, int] = defaultdict(int)
         self._anomaly_window: Dict[str, list] = defaultdict(list)  # customer → [timestamps]
 
@@ -177,7 +183,10 @@ class EdgeCaseDetector:
                     SPIKE_DETECTED.labels(customer_id=cid, direction=direction).inc()
                     logger.warning(
                         "Spike detected: %s HR %d→%d (Δ%+d)",
-                        cid, prev_hr, reading.heart_rate, delta,
+                        cid,
+                        prev_hr,
+                        reading.heart_rate,
+                        delta,
                     )
                     if self._can_alert("spike", cid, now):
                         self._slack.send_spike_alert(cid, prev_hr, reading.heart_rate, delta)
@@ -193,9 +202,7 @@ class EdgeCaseDetector:
                 self._anomaly_window[cid].append(now)
                 # Trim window
                 cutoff = now - (self._sustained_window * 60)
-                self._anomaly_window[cid] = [
-                    t for t in self._anomaly_window[cid] if t > cutoff
-                ]
+                self._anomaly_window[cid] = [t for t in self._anomaly_window[cid] if t > cutoff]
                 if len(self._anomaly_window[cid]) >= self._sustained_count:
                     if self._can_alert("sustained", cid, now):
                         self._email.send_sustained_anomaly_email(

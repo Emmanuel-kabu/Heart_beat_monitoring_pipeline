@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import signal
-import sys
 import threading
 import time
 from typing import Optional
@@ -22,7 +21,7 @@ from src.data_quality.quality_reporter import DataQualityReporter
 from src.data_quality.quality_store import DataQualityStore
 from src.database.db_handler import DatabaseHandler, create_db_handler
 from src.generator.heartbeat_generator import HeartbeatGenerator, create_generator
-from src.kafka_client.consumer import HeartbeatConsumer, create_consumer
+from src.kafka_client.consumer import HeartbeatConsumer
 from src.kafka_client.producer import HeartbeatProducer, create_producer
 from src.logger import get_logger, setup_logging
 from src.models import HeartbeatReading
@@ -90,14 +89,22 @@ class HeartbeatPipeline:
 
         # ── Alerting ────────────────────────────────────────────────────
         self._slack = SlackAlerter()
-        self._slack_daily = SlackAlerter(
-            webhook_url=config.alerting.slack_daily_webhook_url or None,
-            channel=config.alerting.slack_daily_channel or None,
-        ) if config.alerting.slack_daily_webhook_url else self._slack
-        self._slack_weekly = SlackAlerter(
-            webhook_url=config.alerting.slack_weekly_webhook_url or None,
-            channel=config.alerting.slack_weekly_channel or None,
-        ) if config.alerting.slack_weekly_webhook_url else self._slack
+        self._slack_daily = (
+            SlackAlerter(
+                webhook_url=config.alerting.slack_daily_webhook_url or None,
+                channel=config.alerting.slack_daily_channel or None,
+            )
+            if config.alerting.slack_daily_webhook_url
+            else self._slack
+        )
+        self._slack_weekly = (
+            SlackAlerter(
+                webhook_url=config.alerting.slack_weekly_webhook_url or None,
+                channel=config.alerting.slack_weekly_channel or None,
+            )
+            if config.alerting.slack_weekly_webhook_url
+            else self._slack
+        )
         self._email = EmailAlerter()
         logger.info("Alerting (Slack + Email) ready")
 
@@ -128,7 +135,8 @@ class HeartbeatPipeline:
 
         # Kafka consumer (with DLQ + edge detector refs injected)
         self._edge_detector = EdgeCaseDetector(
-            slack=self._slack, email=self._email,
+            slack=self._slack,
+            email=self._email,
         )
         self._reporter = PipelineReporter(
             slack=self._slack,
@@ -514,8 +522,10 @@ def run_dq_report() -> None:
         for cust, count in top_customers:
             print(f"    - {cust}: {count} failures")
     trend = dq_store.get_quality_trend()
-    print(f"\n  Quality trend: {trend.get('direction', 'N/A')} "
-          f"(delta={trend.get('delta', 0):+.1f}%)")
+    print(
+        f"\n  Quality trend: {trend.get('direction', 'N/A')} "
+        f"(delta={trend.get('delta', 0):+.1f}%)"
+    )
     print("=" * 60 + "\n")
 
     # Also send to Slack if configured

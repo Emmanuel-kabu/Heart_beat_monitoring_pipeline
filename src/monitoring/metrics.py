@@ -9,17 +9,8 @@ data quality, and system health.
 from __future__ import annotations
 
 import threading
-import time
-from typing import Optional
 
-from prometheus_client import (
-    Counter,
-    Gauge,
-    Histogram,
-    Info,
-    Summary,
-    start_http_server,
-)
+from prometheus_client import Counter, Gauge, Histogram, Info, start_http_server
 
 from src.logger import get_logger
 

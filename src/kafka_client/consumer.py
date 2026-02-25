@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import signal
 import time
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
 
@@ -22,7 +22,6 @@ from src.logger import get_logger
 from src.models import HeartbeatReading
 from src.monitoring.metrics import (
     DB_INSERT_LATENCY,
-    PROCESSING_LATENCY,
     READINGS_CONSUMED,
     READINGS_PERSISTED,
     READINGS_REJECTED,
@@ -310,6 +309,7 @@ class HeartbeatConsumer:
 
         # Set up signal handlers for graceful shutdown (only in main thread)
         import threading
+
         _is_main_thread = threading.current_thread() is threading.main_thread()
 
         if _is_main_thread:

@@ -7,7 +7,7 @@ Ensures data quality before persistence to the database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Tuple
 
 from src.config import config
@@ -81,9 +81,15 @@ class HeartbeatValidator:
         if not isinstance(reading.heart_rate, int):
             return False, f"heart_rate must be integer, got {type(reading.heart_rate)}"
         if reading.heart_rate < self.ABSOLUTE_MIN_HR:
-            return False, f"heart_rate {reading.heart_rate} below absolute minimum ({self.ABSOLUTE_MIN_HR})"
+            return (
+                False,
+                f"heart_rate {reading.heart_rate} below absolute minimum ({self.ABSOLUTE_MIN_HR})",
+            )
         if reading.heart_rate > self.ABSOLUTE_MAX_HR:
-            return False, f"heart_rate {reading.heart_rate} above absolute maximum ({self.ABSOLUTE_MAX_HR})"
+            return (
+                False,
+                f"heart_rate {reading.heart_rate} above absolute maximum ({self.ABSOLUTE_MAX_HR})",
+            )
 
         # Check timestamp
         if not reading.timestamp:
@@ -129,9 +135,7 @@ class HeartbeatValidator:
 
         return reading
 
-    def validate_and_enrich(
-        self, reading: HeartbeatReading
-    ) -> Tuple[bool, HeartbeatReading, str]:
+    def validate_and_enrich(self, reading: HeartbeatReading) -> Tuple[bool, HeartbeatReading, str]:
         """
         Full validation pipeline: structural check + anomaly detection.
 
@@ -194,9 +198,7 @@ class HeartbeatValidator:
             "validated": self._validated_count,
             "rejected": self._rejected_count,
             "anomalies_detected": self._anomaly_count,
-            "rejection_rate": (
-                round(self._rejected_count / total * 100, 2) if total > 0 else 0.0
-            ),
+            "rejection_rate": (round(self._rejected_count / total * 100, 2) if total > 0 else 0.0),
             "anomaly_rate": (
                 round(self._anomaly_count / self._validated_count * 100, 2)
                 if self._validated_count > 0

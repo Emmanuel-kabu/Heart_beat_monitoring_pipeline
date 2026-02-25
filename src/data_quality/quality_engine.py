@@ -25,7 +25,7 @@ import traceback
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 
@@ -45,13 +45,6 @@ logger = get_logger("data_quality.engine")
 # Try importing Great Expectations -  the engine works without it
 try:
     import great_expectations as gx
-    from great_expectations.core.expectation_suite import ExpectationSuite
-
-    # ExpectationConfiguration moved in newer GE versions
-    try:
-        from great_expectations.core import ExpectationConfiguration
-    except ImportError:
-        from great_expectations.expectations import ExpectationConfiguration
 
     GE_AVAILABLE = True
     logger.info("Great Expectations %s loaded - GE validation enabled", gx.__version__)
@@ -151,20 +144,28 @@ class DataQualityEngine:
     ):
         self._dlq_producer = dlq_producer
         self._quality_store = quality_store
-        self._max_retries = max_retries or getattr(config, "data_quality", None) and config.data_quality.max_retries or 3
+        self._max_retries = (
+            max_retries
+            or getattr(config, "data_quality", None)
+            and config.data_quality.max_retries
+            or 3
+        )
         self._circuit_breaker_threshold = (
             circuit_breaker_threshold
-            or getattr(config, "data_quality", None) and config.data_quality.circuit_breaker_threshold
+            or getattr(config, "data_quality", None)
+            and config.data_quality.circuit_breaker_threshold
             or 0.5
         )
         self._timeliness_max_age = (
             timeliness_max_age_sec
-            or getattr(config, "data_quality", None) and config.data_quality.timeliness_max_age_sec
+            or getattr(config, "data_quality", None)
+            and config.data_quality.timeliness_max_age_sec
             or 300
         )
         self._timeliness_future_tol = (
             timeliness_future_tolerance_sec
-            or getattr(config, "data_quality", None) and config.data_quality.timeliness_future_tolerance_sec
+            or getattr(config, "data_quality", None)
+            and config.data_quality.timeliness_future_tolerance_sec
             or 30
         )
         self._low_threshold = low_threshold or config.anomaly.low_threshold
@@ -259,7 +260,10 @@ class DataQualityEngine:
                     # Escalate severity
                     if rule_obj.severity == RuleSeverity.CRITICAL:
                         rf.severity = RuleSeverity.CRITICAL
-                    elif rule_obj.severity == RuleSeverity.WARNING and rf.severity != RuleSeverity.CRITICAL:
+                    elif (
+                        rule_obj.severity == RuleSeverity.WARNING
+                        and rf.severity != RuleSeverity.CRITICAL
+                    ):
                         rf.severity = RuleSeverity.WARNING
                     # Non‑retryable if ANY failing rule is non‑retryable
                     if not rule_obj.retryable:
@@ -276,9 +280,7 @@ class DataQualityEngine:
 
         # ── Determine passed rows ───────────────────────────────────────
         critical_failed_indices = {rf.row_index for rf in dlq_failures}
-        passed_readings = [
-            r for i, r in enumerate(readings) if i not in critical_failed_indices
-        ]
+        passed_readings = [r for i, r in enumerate(readings) if i not in critical_failed_indices]
 
         # ── Dimension scores ────────────────────────────────────────────
         dimension_scores = self._compute_dimension_scores(rule_results, batch_size)
@@ -434,19 +436,29 @@ class DataQualityEngine:
 
         # ── Consistency: anomaly_flag_type_agreement ────────────────────
         mask_bad_flag = (df["is_anomaly"] == True) & (df["anomaly_type"].isna())  # noqa: E712
-        results.append(self._mask_to_result(
-            mask_bad_flag, n, "anomaly_flag_type_agreement",
-            QualityDimension.CONSISTENCY, RuleSeverity.WARNING,
-            "is_anomaly=True but anomaly_type is null",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask_bad_flag,
+                n,
+                "anomaly_flag_type_agreement",
+                QualityDimension.CONSISTENCY,
+                RuleSeverity.WARNING,
+                "is_anomaly=True but anomaly_type is null",
+            )
+        )
 
         # ── Consistency: normal_flag_type_agreement ─────────────────────
         mask_bad_normal = (df["is_anomaly"] == False) & (df["anomaly_type"].notna())  # noqa: E712
-        results.append(self._mask_to_result(
-            mask_bad_normal, n, "normal_flag_type_agreement",
-            QualityDimension.CONSISTENCY, RuleSeverity.WARNING,
-            "is_anomaly=False but anomaly_type is set",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask_bad_normal,
+                n,
+                "normal_flag_type_agreement",
+                QualityDimension.CONSISTENCY,
+                RuleSeverity.WARNING,
+                "is_anomaly=False but anomaly_type is set",
+            )
+        )
 
         # ── Consistency: threshold consistency ──────────────────────────
         mask_low_wrong = (
@@ -460,11 +472,16 @@ class DataQualityEngine:
             & (df["anomaly_type"] != "HIGH")
         )
         mask_threshold = mask_low_wrong | mask_high_wrong
-        results.append(self._mask_to_result(
-            mask_threshold, n, "anomaly_type_threshold_consistency",
-            QualityDimension.CONSISTENCY, RuleSeverity.WARNING,
-            "anomaly_type does not match threshold direction",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask_threshold,
+                n,
+                "anomaly_type_threshold_consistency",
+                QualityDimension.CONSISTENCY,
+                RuleSeverity.WARNING,
+                "anomaly_type does not match threshold direction",
+            )
+        )
 
         # ── Timeliness: not future ──────────────────────────────────────
         now_ts = datetime.now(timezone.utc)
@@ -480,11 +497,16 @@ class DataQualityEngine:
                 return False
 
         mask_future = df["timestamp"].apply(_is_future)
-        results.append(self._mask_to_result(
-            mask_future, n, "timestamp_not_future",
-            QualityDimension.TIMELINESS, RuleSeverity.CRITICAL,
-            f"timestamp is more than {future_tolerance_sec}s in the future",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask_future,
+                n,
+                "timestamp_not_future",
+                QualityDimension.TIMELINESS,
+                RuleSeverity.CRITICAL,
+                f"timestamp is more than {future_tolerance_sec}s in the future",
+            )
+        )
 
         # ── Timeliness: not stale ───────────────────────────────────────
         max_age_sec = self._timeliness_max_age
@@ -499,27 +521,34 @@ class DataQualityEngine:
                 return False
 
         mask_stale = df["timestamp"].apply(_is_stale)
-        results.append(self._mask_to_result(
-            mask_stale, n, "timestamp_not_stale",
-            QualityDimension.TIMELINESS, RuleSeverity.WARNING,
-            f"timestamp is older than {max_age_sec}s",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask_stale,
+                n,
+                "timestamp_not_stale",
+                QualityDimension.TIMELINESS,
+                RuleSeverity.WARNING,
+                f"timestamp is older than {max_age_sec}s",
+            )
+        )
 
         # ── Statistical: anomaly rate bounded ───────────────────────────
         if n > 0:
             anomaly_rate = (df["is_anomaly"].sum() / n) * 100
             threshold = 30.0
-            results.append(RuleResultDetail(
-                rule_name="anomaly_rate_bounded",
-                dimension=QualityDimension.STATISTICAL.value,
-                severity=RuleSeverity.WARNING.value,
-                passed=anomaly_rate <= threshold,
-                total_rows=n,
-                pass_count=n if anomaly_rate <= threshold else 0,
-                fail_count=0 if anomaly_rate <= threshold else n,
-                failed_indices=[],
-                details=f"anomaly_rate={anomaly_rate:.1f}% (threshold={threshold}%)",
-            ))
+            results.append(
+                RuleResultDetail(
+                    rule_name="anomaly_rate_bounded",
+                    dimension=QualityDimension.STATISTICAL.value,
+                    severity=RuleSeverity.WARNING.value,
+                    passed=anomaly_rate <= threshold,
+                    total_rows=n,
+                    pass_count=n if anomaly_rate <= threshold else 0,
+                    fail_count=0 if anomaly_rate <= threshold else n,
+                    failed_indices=[],
+                    details=f"anomaly_rate={anomaly_rate:.1f}% (threshold={threshold}%)",
+                )
+            )
 
         # ── Pandas‑only fallback for GE row rules when GE unavailable ──
         if not GE_AVAILABLE:
@@ -536,63 +565,98 @@ class DataQualityEngine:
 
         # customer_id not null
         mask = df["customer_id"].isna() | (df["customer_id"] == "")
-        results.append(self._mask_to_result(
-            mask, n, "customer_id_not_null",
-            QualityDimension.COMPLETENESS, RuleSeverity.CRITICAL,
-            "customer_id is null or empty",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "customer_id_not_null",
+                QualityDimension.COMPLETENESS,
+                RuleSeverity.CRITICAL,
+                "customer_id is null or empty",
+            )
+        )
 
         # heart_rate not null
         mask = df["heart_rate"].isna()
-        results.append(self._mask_to_result(
-            mask, n, "heart_rate_not_null",
-            QualityDimension.COMPLETENESS, RuleSeverity.CRITICAL,
-            "heart_rate is null",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "heart_rate_not_null",
+                QualityDimension.COMPLETENESS,
+                RuleSeverity.CRITICAL,
+                "heart_rate is null",
+            )
+        )
 
         # timestamp not null
         mask = df["timestamp"].isna() | (df["timestamp"] == "")
-        results.append(self._mask_to_result(
-            mask, n, "timestamp_not_null",
-            QualityDimension.COMPLETENESS, RuleSeverity.CRITICAL,
-            "timestamp is null or empty",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "timestamp_not_null",
+                QualityDimension.COMPLETENESS,
+                RuleSeverity.CRITICAL,
+                "timestamp is null or empty",
+            )
+        )
 
         # customer_id format
         mask = ~df["customer_id"].astype(str).str.match(r"^CUST-\d{3}$", na=False)
         # Only flag rows where customer_id is not null
         mask = mask & df["customer_id"].notna()
-        results.append(self._mask_to_result(
-            mask, n, "customer_id_format",
-            QualityDimension.VALIDITY, RuleSeverity.CRITICAL,
-            "customer_id does not match CUST-NNN pattern",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "customer_id_format",
+                QualityDimension.VALIDITY,
+                RuleSeverity.CRITICAL,
+                "customer_id does not match CUST-NNN pattern",
+            )
+        )
 
         # heart_rate in range
         mask = (df["heart_rate"] < 20) | (df["heart_rate"] > 300)
         mask = mask & df["heart_rate"].notna()
-        results.append(self._mask_to_result(
-            mask, n, "heart_rate_in_range",
-            QualityDimension.VALIDITY, RuleSeverity.CRITICAL,
-            "heart_rate outside 20–300 range",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "heart_rate_in_range",
+                QualityDimension.VALIDITY,
+                RuleSeverity.CRITICAL,
+                "heart_rate outside 20–300 range",
+            )
+        )
 
         # anomaly_type valid set
         valid_types = {None, "HIGH", "LOW"}
         mask = ~df["anomaly_type"].isin(valid_types) & df["anomaly_type"].notna()
-        results.append(self._mask_to_result(
-            mask, n, "anomaly_type_valid_set",
-            QualityDimension.VALIDITY, RuleSeverity.WARNING,
-            "anomaly_type not in {null, HIGH, LOW}",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "anomaly_type_valid_set",
+                QualityDimension.VALIDITY,
+                RuleSeverity.WARNING,
+                "anomaly_type not in {null, HIGH, LOW}",
+            )
+        )
 
         # is_anomaly boolean
         mask = ~df["is_anomaly"].isin([True, False])
-        results.append(self._mask_to_result(
-            mask, n, "is_anomaly_is_boolean",
-            QualityDimension.VALIDITY, RuleSeverity.WARNING,
-            "is_anomaly is not boolean",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "is_anomaly_is_boolean",
+                QualityDimension.VALIDITY,
+                RuleSeverity.WARNING,
+                "is_anomaly is not boolean",
+            )
+        )
 
         # timestamp_parseable
         def _parseable(ts):
@@ -604,45 +668,59 @@ class DataQualityEngine:
 
         mask = ~df["timestamp"].apply(_parseable)
         mask = mask & df["timestamp"].notna()
-        results.append(self._mask_to_result(
-            mask, n, "timestamp_parseable",
-            QualityDimension.VALIDITY, RuleSeverity.CRITICAL,
-            "timestamp is not a valid ISO 8601 string",
-        ))
+        results.append(
+            self._mask_to_result(
+                mask,
+                n,
+                "timestamp_parseable",
+                QualityDimension.VALIDITY,
+                RuleSeverity.CRITICAL,
+                "timestamp is not a valid ISO 8601 string",
+            )
+        )
 
         # no exact duplicates
         dup_mask = df.duplicated(subset=["customer_id", "timestamp", "heart_rate"], keep="first")
-        results.append(self._mask_to_result(
-            dup_mask, n, "no_exact_duplicates",
-            QualityDimension.UNIQUENESS, RuleSeverity.WARNING,
-            "duplicate (customer_id, timestamp, heart_rate) row",
-        ))
+        results.append(
+            self._mask_to_result(
+                dup_mask,
+                n,
+                "no_exact_duplicates",
+                QualityDimension.UNIQUENESS,
+                RuleSeverity.WARNING,
+                "duplicate (customer_id, timestamp, heart_rate) row",
+            )
+        )
 
         # Batch-level: mean
         mean_hr = df["heart_rate"].mean()
-        results.append(RuleResultDetail(
-            rule_name="heart_rate_mean_in_range",
-            dimension=QualityDimension.STATISTICAL.value,
-            severity=RuleSeverity.WARNING.value,
-            passed=40 <= mean_hr <= 160 if pd.notna(mean_hr) else True,
-            total_rows=n,
-            pass_count=n,
-            fail_count=0,
-            details=f"mean={mean_hr:.1f}" if pd.notna(mean_hr) else "no data",
-        ))
+        results.append(
+            RuleResultDetail(
+                rule_name="heart_rate_mean_in_range",
+                dimension=QualityDimension.STATISTICAL.value,
+                severity=RuleSeverity.WARNING.value,
+                passed=40 <= mean_hr <= 160 if pd.notna(mean_hr) else True,
+                total_rows=n,
+                pass_count=n,
+                fail_count=0,
+                details=f"mean={mean_hr:.1f}" if pd.notna(mean_hr) else "no data",
+            )
+        )
 
         # Batch-level: stdev
         std_hr = df["heart_rate"].std()
-        results.append(RuleResultDetail(
-            rule_name="heart_rate_stdev_bounded",
-            dimension=QualityDimension.STATISTICAL.value,
-            severity=RuleSeverity.WARNING.value,
-            passed=std_hr <= 60 if pd.notna(std_hr) else True,
-            total_rows=n,
-            pass_count=n,
-            fail_count=0,
-            details=f"stdev={std_hr:.1f}" if pd.notna(std_hr) else "no data",
-        ))
+        results.append(
+            RuleResultDetail(
+                rule_name="heart_rate_stdev_bounded",
+                dimension=QualityDimension.STATISTICAL.value,
+                severity=RuleSeverity.WARNING.value,
+                passed=std_hr <= 60 if pd.notna(std_hr) else True,
+                total_rows=n,
+                pass_count=n,
+                fail_count=0,
+                details=f"stdev={std_hr:.1f}" if pd.notna(std_hr) else "no data",
+            )
+        )
 
         return results
 
@@ -721,9 +799,9 @@ class DataQualityEngine:
             # Per rule
             for rr in result.rule_results:
                 if not rr.passed:
-                    DQ_RULE_FAILURES.labels(
-                        rule_name=rr.rule_name, dimension=rr.dimension
-                    ).inc(rr.fail_count)
+                    DQ_RULE_FAILURES.labels(rule_name=rr.rule_name, dimension=rr.dimension).inc(
+                        rr.fail_count
+                    )
 
             # Dimension scores
             scores = result.dimension_scores
@@ -760,7 +838,7 @@ class DataQualityEngine:
 
         for rr in rule_results:
             dim = rr.dimension
-            if rr.total_rows > 0 and rr.row_level if hasattr(rr, 'row_level') else True:
+            if rr.total_rows > 0 and rr.row_level if hasattr(rr, "row_level") else True:
                 dim_pass[dim] += rr.pass_count
                 dim_total[dim] += rr.total_rows
             elif not rr.passed:
@@ -807,13 +885,15 @@ class DataQualityEngine:
         """Convert a list of HeartbeatReading to a pandas DataFrame."""
         records = []
         for r in readings:
-            records.append({
-                "customer_id": r.customer_id,
-                "heart_rate": r.heart_rate,
-                "timestamp": r.timestamp,
-                "is_anomaly": r.is_anomaly,
-                "anomaly_type": r.anomaly_type,
-            })
+            records.append(
+                {
+                    "customer_id": r.customer_id,
+                    "heart_rate": r.heart_rate,
+                    "timestamp": r.timestamp,
+                    "is_anomaly": r.is_anomaly,
+                    "anomaly_type": r.anomaly_type,
+                }
+            )
         return pd.DataFrame(records)
 
     @staticmethod

@@ -16,18 +16,13 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Optional
 
 from confluent_kafka import Consumer, KafkaError, KafkaException, Producer
 
 from src.config import config
 from src.logger import get_logger
-from src.monitoring.metrics import (
-    DLQ_MESSAGES_CURRENT,
-    DLQ_MESSAGES_TOTAL,
-    DLQ_RETRIES_TOTAL,
-    DLQ_RETRY_SUCCESS,
-)
+from src.monitoring.metrics import DLQ_MESSAGES_TOTAL, DLQ_RETRIES_TOTAL, DLQ_RETRY_SUCCESS
 
 logger = get_logger("kafka.dlq")
 
@@ -142,7 +137,9 @@ class DeadLetterQueueProducer:
         if err:
             logger.error("DLQ delivery failed: %s", err)
         else:
-            logger.debug("DLQ message delivered to %s[%d]@%d", msg.topic(), msg.partition(), msg.offset())
+            logger.debug(
+                "DLQ message delivered to %s[%d]@%d", msg.topic(), msg.partition(), msg.offset()
+            )
 
     def flush(self, timeout: float = 10) -> None:
         if self._producer:
@@ -270,7 +267,7 @@ class DeadLetterQueueConsumer:
 
             # Exponential backoff
             if retry_count > 0:
-                backoff = min(self.BACKOFF_BASE ** retry_count, 30)
+                backoff = min(self.BACKOFF_BASE**retry_count, 30)
                 time.sleep(backoff)
 
             # Attempt reprocessing

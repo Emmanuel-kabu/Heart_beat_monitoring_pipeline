@@ -8,14 +8,12 @@ Run with: streamlit run src/dashboard/app.py
 """
 
 import time
-from datetime import datetime, timedelta
 
 import pandas as pd
 import streamlit as st
 
 from src.config import config
 from src.database.db_handler import DatabaseHandler
-
 
 # ─── Page Configuration ─────────────────────────────────────────────────────
 st.set_page_config(
@@ -204,17 +202,18 @@ def render_sidebar():
 
         st.divider()
         st.header("ℹ️ Pipeline Info")
-        st.markdown(f"""
+        st.markdown(
+            f"""
         - **Kafka Topic:** `{config.kafka.topic}`
         - **Database:** `{config.postgres.database}`
         - **Anomaly Low:** `< {config.anomaly.low_threshold} bpm`
         - **Anomaly High:** `> {config.anomaly.high_threshold} bpm`
-        """)
+        """
+        )
 
         st.divider()
         st.markdown(
-            "Built with ❤️ by Emmanuel Kabu\n\n"
-            "Real-Time Customer Heartbeat Monitoring System"
+            "Built with ❤️ by Emmanuel Kabu\n\n" "Real-Time Customer Heartbeat Monitoring System"
         )
 
         return refresh

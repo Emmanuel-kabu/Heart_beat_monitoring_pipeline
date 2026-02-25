@@ -43,7 +43,7 @@ class DataQualityReporter:
         slack: SlackAlerter | None = None,
         email: EmailAlerter | None = None,
         daily_hour_utc: int = 23,
-        weekly_day: int = 6,     # 0=Mon … 6=Sun
+        weekly_day: int = 6,  # 0=Mon … 6=Sun
         check_interval_sec: float = 60,
         degradation_email_threshold: float = 80.0,
     ):
@@ -214,19 +214,24 @@ class DataQualityReporter:
     # ───────────────────────────────────────────────────────────────────
 
     def _send_degradation_email(
-        self, period: str, label: str, data: Dict,
+        self,
+        period: str,
+        label: str,
+        data: Dict,
     ) -> None:
         top_rules = data.get("top_failing_rules", [])
         top_custs = data.get("top_failing_customers", [])
         trend = data.get("quality_trend", {})
 
-        rules_html = "".join(
-            f"<tr><td>{name}</td><td>{count}</td></tr>" for name, count in top_rules
-        ) or "<tr><td colspan='2'>None</td></tr>"
+        rules_html = (
+            "".join(f"<tr><td>{name}</td><td>{count}</td></tr>" for name, count in top_rules)
+            or "<tr><td colspan='2'>None</td></tr>"
+        )
 
-        custs_html = "".join(
-            f"<tr><td>{cid}</td><td>{count}</td></tr>" for cid, count in top_custs
-        ) or "<tr><td colspan='2'>None</td></tr>"
+        custs_html = (
+            "".join(f"<tr><td>{cid}</td><td>{count}</td></tr>" for cid, count in top_custs)
+            or "<tr><td colspan='2'>None</td></tr>"
+        )
 
         html = f"""
         <html><body style="font-family:Arial,sans-serif;">

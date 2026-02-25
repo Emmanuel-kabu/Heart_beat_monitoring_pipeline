@@ -6,22 +6,22 @@ and tests the pipeline components without requiring Kafka or PostgreSQL.
 Useful for quick validation during development.
 """
 
-import sys
 import os
+import sys
 
 # Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # noqa: E402
 
-from src.generator.heartbeat_generator import HeartbeatGenerator, CUSTOMER_PROFILES
-from src.validation.validator import HeartbeatValidator
-from src.models import HeartbeatReading, CustomerProfile
+from src.generator.heartbeat_generator import HeartbeatGenerator  # noqa: E402
+from src.models import HeartbeatReading  # noqa: E402
+from src.validation.validator import HeartbeatValidator  # noqa: E402
 
 
 def print_header(title: str) -> None:
     """Print a formatted section header."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 def test_data_generation():
@@ -48,13 +48,13 @@ def test_validation_pipeline():
 
     # Test various scenarios
     test_cases = [
-        HeartbeatReading("CUST-001", 72, "2026-01-01T12:00:00+00:00"),    # Normal
-        HeartbeatReading("CUST-002", 42, "2026-01-01T12:00:01+00:00"),    # Low anomaly
-        HeartbeatReading("CUST-003", 175, "2026-01-01T12:00:02+00:00"),   # High anomaly
-        HeartbeatReading("CUST-004", 50, "2026-01-01T12:00:03+00:00"),    # Boundary (normal)
-        HeartbeatReading("CUST-005", 150, "2026-01-01T12:00:04+00:00"),   # Boundary (normal)
-        HeartbeatReading("CUST-006", 49, "2026-01-01T12:00:05+00:00"),    # Boundary (low)
-        HeartbeatReading("CUST-007", 151, "2026-01-01T12:00:06+00:00"),   # Boundary (high)
+        HeartbeatReading("CUST-001", 72, "2026-01-01T12:00:00+00:00"),  # Normal
+        HeartbeatReading("CUST-002", 42, "2026-01-01T12:00:01+00:00"),  # Low anomaly
+        HeartbeatReading("CUST-003", 175, "2026-01-01T12:00:02+00:00"),  # High anomaly
+        HeartbeatReading("CUST-004", 50, "2026-01-01T12:00:03+00:00"),  # Boundary (normal)
+        HeartbeatReading("CUST-005", 150, "2026-01-01T12:00:04+00:00"),  # Boundary (normal)
+        HeartbeatReading("CUST-006", 49, "2026-01-01T12:00:05+00:00"),  # Boundary (low)
+        HeartbeatReading("CUST-007", 151, "2026-01-01T12:00:06+00:00"),  # Boundary (high)
     ]
 
     print("Validation Results:")
@@ -75,12 +75,12 @@ def test_invalid_data_handling():
     validator = HeartbeatValidator()
 
     invalid_readings = [
-        HeartbeatReading("", 72, "2026-01-01T12:00:00+00:00"),             # Empty ID
+        HeartbeatReading("", 72, "2026-01-01T12:00:00+00:00"),  # Empty ID
         HeartbeatReading("INVALID-001", 72, "2026-01-01T12:00:00+00:00"),  # Bad format
-        HeartbeatReading("CUST-001", 10, "2026-01-01T12:00:00+00:00"),     # HR too low
-        HeartbeatReading("CUST-001", 350, "2026-01-01T12:00:00+00:00"),    # HR too high
-        HeartbeatReading("CUST-001", 72, ""),                               # Missing timestamp
-        HeartbeatReading("CUST-001", 72, "bad-timestamp"),                  # Invalid timestamp
+        HeartbeatReading("CUST-001", 10, "2026-01-01T12:00:00+00:00"),  # HR too low
+        HeartbeatReading("CUST-001", 350, "2026-01-01T12:00:00+00:00"),  # HR too high
+        HeartbeatReading("CUST-001", 72, ""),  # Missing timestamp
+        HeartbeatReading("CUST-001", 72, "bad-timestamp"),  # Invalid timestamp
     ]
 
     print("Invalid Data Test Results:")
@@ -90,7 +90,9 @@ def test_invalid_data_handling():
         status = "REJECTED" if not is_valid else "ACCEPTED (BUG!)"
         if is_valid:
             all_rejected = False
-        print(f"  {status} | ID: '{reading.customer_id}' | HR: {reading.heart_rate} | Error: {error}")
+        print(
+            f"  {status} | ID: '{reading.customer_id}' | HR: {reading.heart_rate} | Error: {error}"
+        )
 
     print(f"\nAll invalid data rejected: {all_rejected}")
     return all_rejected
@@ -145,11 +147,17 @@ def test_high_volume():
     valid, rejected = validator.validate_batch(readings)
     val_time = time.time() - start
 
-    print(f"Generated {num_readings} readings in {gen_time:.3f}s ({num_readings/gen_time:.0f} readings/sec)")
-    print(f"Validated {num_readings} readings in {val_time:.3f}s ({num_readings/val_time:.0f} readings/sec)")
+    print(
+        f"Generated {num_readings} readings in {gen_time:.3f}s"
+        f" ({num_readings / gen_time:.0f} readings/sec)"
+    )
+    print(
+        f"Validated {num_readings} readings in {val_time:.3f}s"
+        f" ({num_readings / val_time:.0f} readings/sec)"
+    )
     print(f"Valid: {len(valid)} | Rejected: {len(rejected)}")
     print(f"Anomalies: {sum(1 for r in valid if r.is_anomaly)}")
-    print(f"Anomaly rate: {sum(1 for r in valid if r.is_anomaly)/len(valid)*100:.1f}%")
+    print(f"Anomaly rate: {sum(1 for r in valid if r.is_anomaly) / len(valid) * 100:.1f}%")
 
     return len(rejected) == 0
 

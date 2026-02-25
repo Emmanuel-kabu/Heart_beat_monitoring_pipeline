@@ -8,11 +8,9 @@ and graceful shutdown.
 
 from __future__ import annotations
 
-import json
-import time
 from typing import Callable, Optional
 
-from confluent_kafka import KafkaError, KafkaException, Producer
+from confluent_kafka import KafkaException, Producer
 
 from src.config import config
 from src.logger import get_logger
@@ -191,9 +189,7 @@ class HeartbeatProducer:
         if self._producer:
             remaining = self.flush(timeout=30)
             if remaining > 0:
-                logger.warning(
-                    "Producer closing with %d undelivered messages", remaining
-                )
+                logger.warning("Producer closing with %d undelivered messages", remaining)
             logger.info(
                 "Kafka producer closed (delivered=%d, failed=%d)",
                 self._delivered_count,

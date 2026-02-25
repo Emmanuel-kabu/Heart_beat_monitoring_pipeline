@@ -21,7 +21,6 @@ import enum
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Enums
 # ═══════════════════════════════════════════════════════════════════════════
@@ -38,9 +37,10 @@ class QualityDimension(str, enum.Enum):
 
 class RuleSeverity(str, enum.Enum):
     """Determines whether a row failure triggers DLQ or just a warning."""
-    CRITICAL = "critical"       # Row goes to DLQ
-    WARNING = "warning"         # Metric + log only
-    INFO = "info"               # Metric only
+
+    CRITICAL = "critical"  # Row goes to DLQ
+    WARNING = "warning"  # Metric + log only
+    INFO = "info"  # Metric only
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -130,7 +130,6 @@ QUALITY_RULES: List[QualityRule] = [
         retryable=False,
         row_level=False,
     ),
-
     # ── 2. Validity ─────────────────────────────────────────────────────
     QualityRule(
         name="customer_id_format",
@@ -189,13 +188,12 @@ QUALITY_RULES: List[QualityRule] = [
         ge_kwargs={
             "column": "timestamp",
             "regex": (
-                r"^\d{4}-\d{2}-\d{2}"    # date
+                r"^\d{4}-\d{2}-\d{2}"  # date
                 r"[T ]\d{2}:\d{2}:\d{2}"  # time
             ),
         },
         retryable=False,
     ),
-
     # ── 3. Consistency ──────────────────────────────────────────────────
     QualityRule(
         name="anomaly_flag_type_agreement",
@@ -226,7 +224,6 @@ QUALITY_RULES: List[QualityRule] = [
         ge_kwargs={},
         retryable=True,
     ),
-
     # ── 4. Timeliness ───────────────────────────────────────────────────
     QualityRule(
         name="timestamp_not_future",
@@ -235,7 +232,7 @@ QUALITY_RULES: List[QualityRule] = [
         severity=RuleSeverity.CRITICAL,
         ge_expectation_type="_custom_timestamp_not_future",
         ge_kwargs={},
-        retryable=False,   # time won't fix itself
+        retryable=False,  # time won't fix itself
     ),
     QualityRule(
         name="timestamp_not_stale",
@@ -246,7 +243,6 @@ QUALITY_RULES: List[QualityRule] = [
         ge_kwargs={},
         retryable=False,
     ),
-
     # ── 5. Uniqueness ──────────────────────────────────────────────────
     QualityRule(
         name="no_exact_duplicates",
@@ -259,7 +255,6 @@ QUALITY_RULES: List[QualityRule] = [
         },
         retryable=False,
     ),
-
     # ── 6. Statistical (batch‑level) ───────────────────────────────────
     QualityRule(
         name="heart_rate_mean_in_range",

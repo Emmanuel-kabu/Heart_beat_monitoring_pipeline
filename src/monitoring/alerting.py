@@ -21,7 +21,6 @@ import threading
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Dict, List, Optional
 from urllib.request import Request, urlopen
 
 from src.config import config
@@ -201,7 +200,9 @@ class SlackAlerter:
             fields={"Customer": customer_id, "Delta": f"{delta:+d} bpm"},
         )
 
-    def send_device_failure_alert(self, customer_id: str, last_seen: str, silent_sec: float) -> None:
+    def send_device_failure_alert(
+        self, customer_id: str, last_seen: str, silent_sec: float
+    ) -> None:
         """Alert when a device is detected as failed."""
         self.send_alert(
             title=f"Device Failure – {customer_id}",
@@ -278,9 +279,7 @@ class EmailAlerter:
 
     def send_email_async(self, subject: str, html_body: str) -> None:
         """Non-blocking email send."""
-        t = threading.Thread(
-            target=self.send_email, args=(subject, html_body), daemon=True
-        )
+        t = threading.Thread(target=self.send_email, args=(subject, html_body), daemon=True)
         t.start()
 
     # ─── Pre-built Critical Alerts ──────────────────────────────────────
@@ -322,9 +321,7 @@ class EmailAlerter:
         <p style="color:#888;font-size:12px;">Heartbeat Monitoring Pipeline – Automated Alert</p>
         </body></html>
         """
-        self.send_email_async(
-            f"CRITICAL – Sustained Anomalies: {customer_id}", html
-        )
+        self.send_email_async(f"CRITICAL – Sustained Anomalies: {customer_id}", html)
 
     def send_pipeline_down_email(self, component: str, error: str) -> None:
         """Send a critical email when a pipeline component goes down."""

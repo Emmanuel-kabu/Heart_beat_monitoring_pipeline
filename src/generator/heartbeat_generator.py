@@ -58,8 +58,7 @@ class HeartbeatGenerator:
         self._generation_count = 0
 
         logger.info(
-            "HeartbeatGenerator initialized with %d customers, "
-            "anomaly_probability=%.2f",
+            "HeartbeatGenerator initialized with %d customers, " "anomaly_probability=%.2f",
             len(self.customers),
             self.anomaly_probability,
         )
@@ -107,9 +106,7 @@ class HeartbeatGenerator:
                 config.generator.heart_rate_max,
             )
 
-    def generate_single_reading(
-        self, customer: CustomerProfile | None = None
-    ) -> HeartbeatReading:
+    def generate_single_reading(self, customer: CustomerProfile | None = None) -> HeartbeatReading:
         """
         Generate a single heartbeat reading for a customer.
 

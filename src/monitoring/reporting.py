@@ -41,8 +41,8 @@ class PipelineReporter:
         slack_weekly: SlackAlerter | None = None,
         email_monthly: EmailAlerter | None = None,
         daily_hour_utc: int = 23,
-        weekly_day: int = 6,          # 0=Mon ... 6=Sun
-        monthly_day: int = 1,         # Day of month to send monthly report
+        weekly_day: int = 6,  # 0=Mon ... 6=Sun
+        monthly_day: int = 1,  # Day of month to send monthly report
         check_interval_sec: float = 60,
     ):
         """
@@ -166,7 +166,9 @@ class PipelineReporter:
         self._thread.start()
         logger.info(
             "Pipeline reporter started (daily@%02d:00 UTC, weekly on day %d, monthly on day %d)",
-            self._daily_hour, self._weekly_day, self._monthly_day,
+            self._daily_hour,
+            self._weekly_day,
+            self._monthly_day,
         )
 
     def stop(self) -> None:
@@ -201,7 +203,11 @@ class PipelineReporter:
 
     def _maybe_send_weekly(self, now: datetime) -> None:
         iso_week = now.isocalendar()[1]
-        if now.weekday() == self._weekly_day and now.hour == self._daily_hour and self._last_weekly_week != iso_week:
+        if (
+            now.weekday() == self._weekly_day
+            and now.hour == self._daily_hour
+            and self._last_weekly_week != iso_week
+        ):
             self._last_weekly_week = iso_week
             report = self._build_weekly_report(f"Week {iso_week}")
             self._slack_weekly.send_weekly_report(report)
@@ -277,7 +283,7 @@ class PipelineReporter:
         ):
             self._last_monthly_month = month_str
             # Use the *previous* month label (the month we're reporting on)
-            prev_month = (now.replace(day=1) - timedelta(days=1))
+            prev_month = now.replace(day=1) - timedelta(days=1)
             label = prev_month.strftime("%B %Y")
             report = self._build_monthly_report(label)
 

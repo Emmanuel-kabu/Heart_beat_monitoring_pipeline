@@ -20,9 +20,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Deque, Dict, List, Tuple
 
 from src.logger import get_logger
 
@@ -36,14 +35,14 @@ _MAX_SNAPSHOTS = 10_080  # ~7 days at 1‑minute granularity
 class QualitySnapshot:
     """Point‑in‑time quality snapshot."""
 
-    timestamp: float          # unix epoch
+    timestamp: float  # unix epoch
     batch_size: int
     passed: int
     failed: int
     overall_score: float
     dimension_scores: Dict[str, float]
-    rule_failures: Dict[str, int]        # rule_name → count
-    customer_failures: Dict[str, int]    # customer_id → count
+    rule_failures: Dict[str, int]  # rule_name → count
+    customer_failures: Dict[str, int]  # customer_id → count
     engine_used: str
     circuit_breaker_tripped: bool
 
@@ -101,13 +100,12 @@ class DataQualityStore:
         Args:
             result: A ``DQResult`` dataclass instance.
         """
-        from src.data_quality.quality_engine import DQResult, RuleSeverity
+        from src.data_quality.quality_engine import RuleSeverity
 
         with self._lock:
             now = time.time()
             critical_failures = [
-                f for f in result.failed_rows
-                if f.severity == RuleSeverity.CRITICAL
+                f for f in result.failed_rows if f.severity == RuleSeverity.CRITICAL
             ]
             n_passed = len(result.passed_readings)
             n_failed = len(critical_failures)
@@ -186,20 +184,19 @@ class DataQualityStore:
                 "total_passed": self._total_passed,
                 "total_failed": self._total_failed,
                 "pass_rate": (
-                    self._total_passed / self._total_rows * 100
-                    if self._total_rows > 0
-                    else 100.0
+                    self._total_passed / self._total_rows * 100 if self._total_rows > 0 else 100.0
                 ),
                 "avg_dimension_scores": {
-                    dim: (
-                        self._dimension_score_sums[dim]
-                        / self._dimension_score_counts[dim]
-                    )
+                    dim: (self._dimension_score_sums[dim] / self._dimension_score_counts[dim])
                     if self._dimension_score_counts.get(dim, 0) > 0
                     else 100.0
                     for dim in [
-                        "completeness", "validity", "consistency",
-                        "timeliness", "uniqueness", "statistical",
+                        "completeness",
+                        "validity",
+                        "consistency",
+                        "timeliness",
+                        "uniqueness",
+                        "statistical",
                     ]
                 },
             }
@@ -207,17 +204,13 @@ class DataQualityStore:
     def get_top_failing_rules(self, n: int = 10) -> List[Tuple[str, int]]:
         """Return the top N most frequently failing rules (lifetime)."""
         with self._lock:
-            sorted_rules = sorted(
-                self._rule_failures.items(), key=lambda x: x[1], reverse=True
-            )
+            sorted_rules = sorted(self._rule_failures.items(), key=lambda x: x[1], reverse=True)
             return sorted_rules[:n]
 
     def get_top_failing_customers(self, n: int = 10) -> List[Tuple[str, int]]:
         """Return the top N customers with most quality failures."""
         with self._lock:
-            sorted_custs = sorted(
-                self._customer_failures.items(), key=lambda x: x[1], reverse=True
-            )
+            sorted_custs = sorted(self._customer_failures.items(), key=lambda x: x[1], reverse=True)
             return sorted_custs[:n]
 
     def get_quality_trend(self, window_minutes: int = 60) -> Dict[str, Any]:
@@ -241,12 +234,9 @@ class DataQualityStore:
             cutoff = now - (window_minutes * 60)
             half = now - (window_minutes * 30)
 
-            recent_scores = [
-                s.overall_score for s in self._snapshots if s.timestamp > half
-            ]
+            recent_scores = [s.overall_score for s in self._snapshots if s.timestamp > half]
             older_scores = [
-                s.overall_score for s in self._snapshots
-                if cutoff < s.timestamp <= half
+                s.overall_score for s in self._snapshots if cutoff < s.timestamp <= half
             ]
 
             current = sum(recent_scores) / len(recent_scores) if recent_scores else 100.0
@@ -268,14 +258,14 @@ class DataQualityStore:
             }
 
     def get_recent_circuit_breaker_trips(
-        self, window_minutes: int = 60,
+        self,
+        window_minutes: int = 60,
     ) -> int:
         """Count circuit breaker trips in the last N minutes."""
         with self._lock:
             cutoff = time.time() - (window_minutes * 60)
             return sum(
-                1 for s in self._snapshots
-                if s.timestamp > cutoff and s.circuit_breaker_tripped
+                1 for s in self._snapshots if s.timestamp > cutoff and s.circuit_breaker_tripped
             )
 
     # ───────────────────────────────────────────────────────────────────
