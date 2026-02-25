@@ -50,7 +50,8 @@ This system demonstrates a modern data engineering pipeline that:
 7. **Alerts** via Slack (all severities) and Email (critical issues)
 8. **Reports** daily and weekly summaries automatically via Slack
 9. **Quarantines** failed messages in a Dead Letter Queue for retry
-10. **Visualizes** data through Grafana (Prometheus + PostgreSQL) and Streamlit dashboards
+10. **Validates** data quality with a dedicated engine (Great Expectations + custom rules)
+11. **Visualizes** data through Grafana (Prometheus + PostgreSQL) dashboards
 
 ### Key Features
 
@@ -65,7 +66,8 @@ This system demonstrates a modern data engineering pipeline that:
 - ✅ **Slack alerting** — data quality reports, system health, spike alerts, device failures, daily/weekly reports
 - ✅ **Email alerting** — critical issues (device failure, sustained anomalies, pipeline down, DLQ overflow)
 - ✅ **Kafka UI** — web-based topic, consumer, and cluster inspection
-- ✅ **Scheduled reporting** — daily & weekly pipeline summaries sent to Slack
+- ✅ **Data Quality Engine** — Great Expectations + custom pandas rules with circuit breaker
+- ✅ **Scheduled reporting** — daily & weekly Slack summaries + monthly email reports via Gmail SMTP
 - ✅ **Prometheus alert rules** — 10 pre-configured rules with Alertmanager routing
 - ✅ Graceful shutdown handling with signal trapping
 - ✅ Comprehensive logging with rotation
@@ -115,7 +117,7 @@ For detailed diagrams, see [docs/data_flow_diagram.md](docs/data_flow_diagram.md
 | Python DB          | psycopg2 2.9.9                      | PostgreSQL adapter               |
 | Metrics Collection | Prometheus 2.48 + prometheus-client | Pipeline & system metrics        |
 | Alert Routing      | Alertmanager 0.26                   | Prometheus alert delivery        |
-| Dashboard          | Grafana 10.2 / Streamlit 1.29       | Prometheus + PostgreSQL dashboards |
+| Dashboard          | Grafana 10.2                        | Prometheus + PostgreSQL + DQ dashboards |
 | Kafka Monitoring   | Kafka UI 0.7.1 (Provectus)         | Topic, consumer & cluster UI     |
 | Alerting           | Slack Webhooks / SMTP Email         | Notifications & critical alerts  |
 | Orchestration      | Docker Compose                      | Infrastructure management        |
@@ -168,9 +170,16 @@ Heart_beat_monitoring_pipeline/
 │   │   ├── alerting.py         # Slack & Email alert senders
 │   │   ├── dlq.py              # Dead Letter Queue producer & consumer
 │   │   ├── edge_cases.py       # 5 edge-case detectors
-│   │   └── reporting.py        # Daily & weekly scheduled reports
+│   │   └── reporting.py        # Daily, weekly & monthly scheduled reports
 │   │
-│   └── dashboard/              # Streamlit dashboard
+│   ├── data_quality/           # Data quality validation engine
+│   │   ├── __init__.py
+│   │   ├── expectations.py     # Great Expectations rule definitions
+│   │   ├── quality_engine.py   # DQ engine (GE + custom pandas rules)
+│   │   ├── quality_reporter.py # Scheduled DQ reports (daily/weekly)
+│   │   └── quality_store.py    # In-memory DQ snapshot store & trends
+│   │
+│   └── dashboard/              # Streamlit dashboard (legacy)
 │       ├── __init__.py
 │       └── app.py
 │
@@ -191,6 +200,7 @@ Heart_beat_monitoring_pipeline/
 │       ├── dashboards/
 │       │   ├── dashboard.yml
 │       │   ├── heartbeat_dashboard.json       # PostgreSQL-backed dashboard
+│       │   ├── data_quality_dashboard.json    # Data quality metrics dashboard
 │       │   └── prometheus_dashboard.json      # Prometheus metrics dashboard
 │       └── datasources/
 │           └── datasource.yml                 # PostgreSQL + Prometheus datasources
@@ -201,7 +211,8 @@ Heart_beat_monitoring_pipeline/
 │   └── alertmanager.yml        # Routing: Slack (all) + Email (critical)
 │
 ├── docs/                       # Documentation
-│   ├── data_flow_diagram.md    # System diagrams (Mermaid)
+│   ├── architecture_diagram.md # Architecture diagrams (Mermaid)
+│   ├── data_flow_diagram.md    # Data flow diagrams (Mermaid)
 │   └── architecture_decisions.md
 │
 └── logs/                       # Runtime log files (gitignored)
@@ -224,10 +235,10 @@ Heart_beat_monitoring_pipeline/
 |---------------|----------------------------------|--------------------|-------------------------------|
 | Zookeeper     | confluentinc/cp-zookeeper:7.5.0  | 2181               | Kafka coordination            |
 | Kafka         | confluentinc/cp-kafka:7.5.0      | 9092, 29092        | Message broker                |
-| PostgreSQL    | postgres:16-alpine               | 5432               | Data storage                  |
+| PostgreSQL    | postgres:16-alpine               | 5433               | Data storage                  |
 | Prometheus    | prom/prometheus:v2.48.0          | 9090               | Metrics collection & alerting |
 | Alertmanager  | prom/alertmanager:v0.26.0        | 9093               | Alert routing (Slack/Email)   |
-| Grafana       | grafana/grafana:10.2.0           | 3000               | Dashboarding (admin/admin)    |
+| Grafana       | grafana/grafana:10.2.0           | 3000               | Dashboarding (admin/bukes123) |
 | Kafka UI      | provectuslabs/kafka-ui:v0.7.1   | 8080               | Kafka topics & consumers UI   |
 
 ---
@@ -283,13 +294,12 @@ make start-pipeline
 | Kafka UI         | http://localhost:8080        | —            |
 | Prometheus       | http://localhost:9090        | —            |
 | Alertmanager     | http://localhost:9093        | —            |
-| Grafana          | http://localhost:3000        | admin/admin  |
-| Streamlit        | http://localhost:8501        | —            |
+| Grafana          | http://localhost:3000        | admin/bukes123 |
 | Pipeline Metrics | http://localhost:8000/metrics | —            |
 
 ```bash
-# Streamlit (optional)
-streamlit run src/dashboard/app.py
+# Open all UIs at once (Windows)
+make open-all-uis
 ```
 
 ---
@@ -302,7 +312,7 @@ All settings can be configured via environment variables (`.env` file):
 |-----------------------------|----------------------|------------------------------------|
 | **PostgreSQL** | | |
 | `POSTGRES_HOST`             | `localhost`          | PostgreSQL host                    |
-| `POSTGRES_PORT`             | `5432`               | PostgreSQL port                    |
+| `POSTGRES_PORT`             | `5433`               | PostgreSQL port                    |
 | `POSTGRES_DB`               | `heartbeat_db`       | Database name                      |
 | `POSTGRES_USER`             | `heartbeat_user`     | Database user                      |
 | `POSTGRES_PASSWORD`         | `heartbeat_pass123`  | Database password                  |
@@ -325,7 +335,11 @@ All settings can be configured via environment variables (`.env` file):
 | `EDGE_CHECK_INTERVAL_SEC`   | `15`                 | Background device-health check interval |
 | `DLQ_ALERT_THRESHOLD`       | `100`                | DLQ message count to trigger email alert |
 | **Alerting** | | |
-| `SLACK_WEBHOOK_URL`         | *(empty)*            | Slack Incoming Webhook URL         |
+| `SLACK_WEBHOOK_URL`         | *(empty)*            | Slack Incoming Webhook URL (general alerts) |
+| `SLACK_DAILY_WEBHOOK_URL`   | *(empty)*            | Slack webhook for daily reports    |
+| `SLACK_DAILY_CHANNEL`       | *(empty)*            | Slack channel for daily reports    |
+| `SLACK_WEEKLY_WEBHOOK_URL`  | *(empty)*            | Slack webhook for weekly reports   |
+| `SLACK_WEEKLY_CHANNEL`      | *(empty)*            | Slack channel for weekly reports   |
 | `SMTP_HOST`                 | *(empty)*            | SMTP server hostname               |
 | `SMTP_PORT`                 | `587`                | SMTP server port (TLS)             |
 | `SMTP_USER`                 | *(empty)*            | SMTP username / sender email       |
@@ -333,7 +347,6 @@ All settings can be configured via environment variables (`.env` file):
 | `ALERT_EMAIL_RECIPIENTS`    | *(empty)*            | Comma-separated recipient emails   |
 | **General** | | |
 | `LOG_LEVEL`                 | `INFO`               | Logging level                      |
-| `DASHBOARD_PORT`            | `8501`               | Streamlit dashboard port           |
 
 ---
 
@@ -371,13 +384,31 @@ Reprocesses messages from the Dead Letter Queue — validates and re-inserts int
 python -m src.main --mode dlq-retry
 ```
 
+### Data Quality Report
+
+Prints an on-demand data quality status report to the console:
+
+```bash
+python -m src.main --mode dq-report
+```
+
+### Background Start / Stop
+
+```bash
+# Start the pipeline in the background (Windows)
+make start
+
+# Stop the background pipeline
+make stop
+```
+
 ### CLI Options
 
 ```bash
 python -m src.main --help
 
 # Options:
-#   --mode {full,producer,consumer,dlq-retry}  Pipeline mode (default: full)
+#   --mode {full,producer,consumer,dlq-retry,dq-report}  Pipeline mode (default: full)
 #   --log-level {DEBUG,INFO,WARNING,ERROR}      Override log level
 ```
 
@@ -510,12 +541,15 @@ Update the webhook URLs and email recipients in `prometheus/alertmanager.yml`.
 
 The `PipelineReporter` accumulates statistics and sends automated summaries:
 
-| Report | Schedule | Channel |
-|--------|----------|--------|
-| Daily | 23:00 UTC daily | Slack |
-| Weekly | Sunday 23:00 UTC | Slack |
+| Report  | Schedule               | Channel       |
+|---------|------------------------|---------------|
+| Daily   | 23:00 UTC daily        | Slack         |
+| Weekly  | Sunday 23:00 UTC       | Slack         |
+| Monthly | 1st of month, 23:00 UTC | Email (Gmail SMTP) |
 
 Each report includes: readings processed, anomalies, DLQ count, average latency, quality score, device failures.
+
+Monthly reports are HTML-formatted emails with summary cards and a detail table, sent via Gmail SMTP.
 
 Reporting metrics are also exposed as Prometheus gauges for Grafana visualization.
 
@@ -525,9 +559,9 @@ Reporting metrics are also exposed as Prometheus gauges for Grafana visualizatio
 
 ### Grafana Dashboards
 
-Available at `http://localhost:3000` (login: admin/admin)
+Available at `http://localhost:3000` (login: admin/bukes123)
 
-**Two pre-provisioned dashboards:**
+**Three pre-provisioned dashboards:**
 
 #### 1. Heartbeat Dashboard (PostgreSQL)
 - Total readings counter
@@ -542,25 +576,17 @@ Available at `http://localhost:3000` (login: admin/admin)
 - **Edge Case Monitoring** — device delay time-series, device status timeline, spike rate, HR distribution histogram
 - **Anomalies & Data Quality** — anomaly rate gauge, anomalies by customer and type
 - **DLQ & System Health** — DLQ messages by reason, processing latency (p50/p95/p99), component connectivity, DB insert latency, DLQ retry success rate
-- **Reporting** — daily/weekly readings and anomaly counters
+- **Reporting** — daily/weekly/monthly readings and anomaly counters
+
+#### 3. Data Quality Dashboard
+- Data quality score over time
+- Failing rules breakdown
+- Row-level failure distribution
+- Circuit breaker trip history
 
 ### Kafka UI
 
 Available at `http://localhost:8080` — inspect topics, consumers, messages, and cluster health.
-
-### Streamlit Dashboard
-
-```bash
-streamlit run src/dashboard/app.py
-# Open http://localhost:8501
-```
-
-Features:
-- Real-time KPI metrics (total readings, average HR, anomaly count)
-- Interactive heart rate time-series chart per customer
-- Anomaly event log with HIGH/LOW classification
-- Customer summary statistics table
-- Auto-refreshing display
 
 ---
 
@@ -793,7 +819,7 @@ curl http://localhost:8000/metrics
 
 ```bash
 # Check DLQ topic has messages
-docker-compose exec kafka kafka-console-consumer \
+docker-compose -f docker-compose_kafka.yml exec kafka kafka-console-consumer \
   --topic customer_heartbeat_dlq \
   --bootstrap-server localhost:9092 \
   --from-beginning --max-messages 5

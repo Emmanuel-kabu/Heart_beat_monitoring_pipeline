@@ -38,7 +38,7 @@ up: ## Start all infrastructure (Kafka, PostgreSQL, Prometheus, Grafana, Kafka U
 	@echo "Waiting for services to be healthy..."
 	@sleep 15
 	@echo "Infrastructure is ready!"
-	@echo "  Grafana       → $(GRAFANA_URL)  (admin/admin)"
+	@echo "  Grafana       → $(GRAFANA_URL)  (admin/bukes123)"
 	@echo "  Prometheus    → $(PROMETHEUS_URL)"
 	@echo "  Alertmanager  → $(ALERTMANAGER_URL)"
 	@echo "  Kafka UI      → $(KAFKA_UI_URL)"
