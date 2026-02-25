@@ -187,9 +187,11 @@ class DataQualityStore:
                     self._total_passed / self._total_rows * 100 if self._total_rows > 0 else 100.0
                 ),
                 "avg_dimension_scores": {
-                    dim: (self._dimension_score_sums[dim] / self._dimension_score_counts[dim])
-                    if self._dimension_score_counts.get(dim, 0) > 0
-                    else 100.0
+                    dim: (
+                        (self._dimension_score_sums[dim] / self._dimension_score_counts[dim])
+                        if self._dimension_score_counts.get(dim, 0) > 0
+                        else 100.0
+                    )
                     for dim in [
                         "completeness",
                         "validity",

@@ -202,14 +202,12 @@ def render_sidebar():
 
         st.divider()
         st.header("ℹ️ Pipeline Info")
-        st.markdown(
-            f"""
+        st.markdown(f"""
         - **Kafka Topic:** `{config.kafka.topic}`
         - **Database:** `{config.postgres.database}`
         - **Anomaly Low:** `< {config.anomaly.low_threshold} bpm`
         - **Anomaly High:** `> {config.anomaly.high_threshold} bpm`
-        """
-        )
+        """)
 
         st.divider()
         st.markdown(
