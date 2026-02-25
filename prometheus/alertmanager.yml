@@ -1,0 +1,66 @@
+# ============================================================================
+# Alertmanager Configuration – Heartbeat Monitoring Pipeline
+# ============================================================================
+#
+# Routes Prometheus alerts to Slack and Email.
+# Update the placeholder values with your actual credentials.
+# ============================================================================
+
+global:
+  resolve_timeout: 5m
+
+  # SMTP defaults (for email alerts)
+  smtp_smarthost: "smtp.gmail.com:587"
+  smtp_from: "heartbeat-alerts@example.com"
+  smtp_auth_username: ""         # <- Set via env or edit here
+  smtp_auth_password: ""         # <- Set via env or edit here
+  smtp_require_tls: true
+
+route:
+  # Default receiver
+  receiver: "slack-notifications"
+  group_by: ["alertname", "customer_id"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  # Route critical alerts to email as well
+  routes:
+    - match:
+        severity: critical
+      receiver: "critical-email"
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  # ─── Slack ──────────────────────────────────────────────────────────
+  - name: "slack-notifications"
+    slack_configs:
+      - api_url: "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK"
+        channel: "#heartbeat-alerts"
+        title: '{{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Labels.severity | toUpper }}* — {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+
+  # ─── Email (Critical) ──────────────────────────────────────────────
+  - name: "critical-email"
+    email_configs:
+      - to: "oncall@example.com"        # <- Set actual recipients
+        send_resolved: true
+        headers:
+          Subject: '[Heartbeat Pipeline] {{ .GroupLabels.alertname }}'
+    # Also send to Slack
+    slack_configs:
+      - api_url: "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK"
+        channel: "#heartbeat-critical"
+        title: '🚨 {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *CRITICAL* — {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true

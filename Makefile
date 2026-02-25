@@ -1,18 +1,26 @@
-.PHONY: help setup up down start-producer start-consumer start-pipeline dashboard test lint clean logs
+.PHONY: help setup up down start-producer start-consumer start-pipeline \
+        start stop dashboard grafana prometheus kafka-ui alertmanager \
+        dlq-retry dq-report test lint clean logs
 
 # ─── Variables ──────────────────────────────────────────────────────────────
 PYTHON := python
 PIP := pip
-DOCKER_COMPOSE := docker-compose
+DOCKER_COMPOSE := docker-compose -f docker-compose_kafka.yml
 PYTEST := pytest
-STREAMLIT := streamlit
+
+# Service URLs
+GRAFANA_URL      := http://localhost:3000
+PROMETHEUS_URL   := http://localhost:9090
+ALERTMANAGER_URL := http://localhost:9093
+KAFKA_UI_URL     := http://localhost:8080
+METRICS_URL      := http://localhost:8000/metrics
 
 # ─── Help ───────────────────────────────────────────────────────────────────
 help: ## Show this help message
 	@echo "Real-Time Customer Heartbeat Monitoring System"
 	@echo "=============================================="
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@powershell -NoProfile -Command "Get-Content $(MAKEFILE_LIST) | Select-String '^[a-zA-Z_-]+:.*?## .*$$' | ForEach-Object { $$_ -match '^([a-zA-Z_-]+):.*?## (.*)$$' | Out-Null; '  {0,-20} {1}' -f $$Matches[1], $$Matches[2] } | Sort-Object"
 
 # ─── Setup ──────────────────────────────────────────────────────────────────
 setup: ## Install Python dependencies
@@ -25,11 +33,15 @@ setup-dev: ## Install development dependencies
 	@echo "Development setup complete!"
 
 # ─── Docker ─────────────────────────────────────────────────────────────────
-up: ## Start all infrastructure (Kafka, Zookeeper, PostgreSQL, Grafana)
+up: ## Start all infrastructure (Kafka, PostgreSQL, Prometheus, Grafana, Kafka UI)
 	$(DOCKER_COMPOSE) up -d
 	@echo "Waiting for services to be healthy..."
 	@sleep 15
 	@echo "Infrastructure is ready!"
+	@echo "  Grafana       → $(GRAFANA_URL)  (admin/admin)"
+	@echo "  Prometheus    → $(PROMETHEUS_URL)"
+	@echo "  Alertmanager  → $(ALERTMANAGER_URL)"
+	@echo "  Kafka UI      → $(KAFKA_UI_URL)"
 
 down: ## Stop all infrastructure
 	$(DOCKER_COMPOSE) down
@@ -45,9 +57,28 @@ infra-status: ## Check status of infrastructure services
 infra-logs: ## View infrastructure logs
 	$(DOCKER_COMPOSE) logs -f --tail=50
 
+infra-logs-kafka: ## View Kafka broker logs
+	$(DOCKER_COMPOSE) logs -f --tail=100 kafka
+
+infra-logs-grafana: ## View Grafana logs
+	$(DOCKER_COMPOSE) logs -f --tail=100 grafana
+
+infra-logs-prometheus: ## View Prometheus logs
+	$(DOCKER_COMPOSE) logs -f --tail=100 prometheus
+
 # ─── Pipeline ───────────────────────────────────────────────────────────────
 start-pipeline: ## Start the full pipeline (producer + consumer)
 	$(PYTHON) -m src.main --mode full
+
+start: ## Start the pipeline in the background
+	@echo "Starting pipeline in the background..."
+	@powershell -NoProfile -Command "Start-Process -FilePath '$(PYTHON)' -ArgumentList '-m','src.main','--mode','full' -WindowStyle Hidden"
+	@echo "Pipeline started! Use 'make stop' to stop it."
+
+stop: ## Stop the running pipeline
+	@echo "Stopping pipeline..."
+	-@powershell -NoProfile -Command "Get-WmiObject Win32_Process -ErrorAction SilentlyContinue | Where-Object { $$_.CommandLine -and $$_.CommandLine -match 'src.main' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('  Killed PID ' + $$_.ProcessId) }"
+	@echo "Done."
 
 start-producer: ## Start only the data producer
 	$(PYTHON) -m src.main --mode producer
@@ -55,9 +86,43 @@ start-producer: ## Start only the data producer
 start-consumer: ## Start only the data consumer
 	$(PYTHON) -m src.main --mode consumer
 
-# ─── Dashboard ──────────────────────────────────────────────────────────────
-dashboard: ## Launch the Streamlit dashboard
-	$(STREAMLIT) run src/dashboard/app.py --server.port 8501
+dlq-retry: ## Reprocess messages from the Dead Letter Queue
+	$(PYTHON) -m src.main --mode dlq-retry
+
+dq-report: ## Print on-demand data quality status report
+	$(PYTHON) -m src.main --mode dq-report
+
+# ─── Dashboards & UIs ──────────────────────────────────────────────────────
+dashboard: ## Open Grafana dashboard in the browser (default admin/admin)
+	@echo "Opening Grafana dashboard at $(GRAFANA_URL) ..."
+	@start "" "$(GRAFANA_URL)"
+
+grafana: ## Open Grafana in the browser (default admin/admin)
+	@echo "Opening Grafana at $(GRAFANA_URL) ..."
+	@start "" "$(GRAFANA_URL)"
+
+prometheus: ## Open Prometheus in the browser
+	@echo "Opening Prometheus at $(PROMETHEUS_URL) ..."
+	@start "" "$(PROMETHEUS_URL)"
+
+alertmanager: ## Open Alertmanager in the browser
+	@echo "Opening Alertmanager at $(ALERTMANAGER_URL) ..."
+	@start "" "$(ALERTMANAGER_URL)"
+
+kafka-ui: ## Open Kafka UI in the browser
+	@echo "Opening Kafka UI at $(KAFKA_UI_URL) ..."
+	@start "" "$(KAFKA_UI_URL)"
+
+open-all-uis: ## Open all UIs (Grafana + Prometheus + Kafka UI + Alertmanager)
+	@echo "Opening all monitoring UIs..."
+	@start "" "$(GRAFANA_URL)"
+	@start "" "$(PROMETHEUS_URL)"
+	@start "" "$(KAFKA_UI_URL)"
+	@start "" "$(ALERTMANAGER_URL)"
+	@echo "  Grafana       → $(GRAFANA_URL)"
+	@echo "  Prometheus    → $(PROMETHEUS_URL)"
+	@echo "  Kafka UI      → $(KAFKA_UI_URL)"
+	@echo "  Alertmanager  → $(ALERTMANAGER_URL)"
 
 # ─── Testing ────────────────────────────────────────────────────────────────
 test: ## Run all unit tests
@@ -88,11 +153,11 @@ typecheck: ## Run type checking
 
 # ─── Utilities ──────────────────────────────────────────────────────────────
 clean: ## Clean up generated files
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	rm -rf htmlcov .coverage coverage.xml
-	rm -rf logs/*.log
+	@powershell -NoProfile -Command "Get-ChildItem -Path . -Filter __pycache__ -Recurse -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force"
+	@powershell -NoProfile -Command "Get-ChildItem -Path . -Filter .pytest_cache -Recurse -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force"
+	@powershell -NoProfile -Command "Remove-Item -Path htmlcov,.coverage,coverage.xml -Recurse -Force -ErrorAction SilentlyContinue"
+	@powershell -NoProfile -Command "Remove-Item -Path logs/*.log -Force -ErrorAction SilentlyContinue"
 	@echo "Cleaned up!"
 
-logs: ## View pipeline logs
-	@tail -f logs/pipeline.log 2>/dev/null || echo "No log file found. Start the pipeline first."
+logs: ## View pipeline logs (live tail)
+	@powershell -NoProfile -Command "if (Test-Path logs/pipeline.log) { Get-Content logs/pipeline.log -Tail 50 -Wait } else { Write-Host 'No log file found. Start the pipeline first.' }"

@@ -1,0 +1,543 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📊 Data Quality Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "yellow", "value": 90 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 101,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Overall Quality Score",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_overall_score_percent",
+          "legendFormat": "Overall"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 6, "y": 1 },
+      "id": 102,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "title": "Rows Passed",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_rows_passed_total",
+          "legendFormat": "Passed"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        }
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 10, "y": 1 },
+      "id": 103,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "title": "Rows Failed (DLQ)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(heartbeat_dq_rows_failed_total)",
+          "legendFormat": "Failed"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "purple" }
+        }
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 14, "y": 1 },
+      "id": 104,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "title": "Quarantined",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_quarantined_total",
+          "legendFormat": "Quarantined"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "dark-red" }
+        }
+      },
+      "gridPos": { "h": 6, "w": 3, "x": 18, "y": 1 },
+      "id": 105,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "title": "Circuit Breaker Trips",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_circuit_breaker_trips_total",
+          "legendFormat": "Trips"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "gridPos": { "h": 6, "w": 3, "x": 21, "y": 1 },
+      "id": 106,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "title": "Avg Batch Validation",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "rate(heartbeat_dq_batch_validation_seconds_sum[5m]) / rate(heartbeat_dq_batch_validation_seconds_count[5m])",
+          "legendFormat": "Avg"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 200,
+      "title": "📈 Dimension Scores",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 8 },
+      "id": 201,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Completeness",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_completeness_score_percent",
+          "legendFormat": "Completeness"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 5, "y": 8 },
+      "id": 202,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Validity",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_validity_score_percent",
+          "legendFormat": "Validity"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 10, "y": 8 },
+      "id": 203,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Consistency",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_consistency_score_percent",
+          "legendFormat": "Consistency"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": { "h": 6, "w": 5, "x": 15, "y": 8 },
+      "id": 204,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Timeliness",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_timeliness_score_percent",
+          "legendFormat": "Timeliness"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" }
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 8 },
+      "id": 205,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "title": "Data Quality Score %",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_overall_score_percent",
+          "legendFormat": "Score"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 300,
+      "title": "📉 Quality Score Trend",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "id": 301,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right" }
+      },
+      "title": "Quality Scores Over Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "heartbeat_dq_overall_score_percent",
+          "legendFormat": "Overall"
+        },
+        {
+          "expr": "heartbeat_dq_completeness_score_percent",
+          "legendFormat": "Completeness"
+        },
+        {
+          "expr": "heartbeat_dq_validity_score_percent",
+          "legendFormat": "Validity"
+        },
+        {
+          "expr": "heartbeat_dq_consistency_score_percent",
+          "legendFormat": "Consistency"
+        },
+        {
+          "expr": "heartbeat_dq_timeliness_score_percent",
+          "legendFormat": "Timeliness"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 400,
+      "title": "🔍 Rule Failures (Root Cause)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 401,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "lastNotNull"] }
+      },
+      "title": "Rule Failures by Rule Name",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "topk(10, sum by (rule_name) (rate(heartbeat_dq_rule_failures_total[5m])))",
+          "legendFormat": "{{rule_name}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 402,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }
+      },
+      "title": "Failures by Quality Dimension",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (dimension) (rate(heartbeat_dq_rule_failures_total[5m]))",
+          "legendFormat": "{{dimension}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 403,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }
+      },
+      "title": "DLQ Rows by Dimension",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (dimension) (rate(heartbeat_dq_rows_failed_total[5m]))",
+          "legendFormat": "{{dimension}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 404,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "title": "Pass vs Fail Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(heartbeat_dq_validations_total{result=\"pass\"}[5m])",
+          "legendFormat": "Pass rate"
+        },
+        {
+          "expr": "rate(heartbeat_dq_validations_total{result=\"fail\"}[5m])",
+          "legendFormat": "Fail rate"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 500,
+      "title": "⏱️ Validation Performance & Circuit Breaker",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "id": 501,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "title": "DQ Batch Validation Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(heartbeat_dq_batch_validation_seconds_bucket[5m]))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(heartbeat_dq_batch_validation_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(heartbeat_dq_batch_validation_seconds_bucket[5m]))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "id": 502,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "title": "Circuit Breaker Trips & Quarantined Rows",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(heartbeat_dq_circuit_breaker_trips_total[5m]) * 300",
+          "legendFormat": "CB Trips (per 5m)"
+        },
+        {
+          "expr": "rate(heartbeat_dq_quarantined_total[5m]) * 300",
+          "legendFormat": "Quarantined (per 5m)"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["heartbeat", "data-quality", "great-expectations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Heartbeat Pipeline – Data Quality",
+  "uid": "heartbeat-data-quality",
+  "version": 1
+}

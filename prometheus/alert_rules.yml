@@ -1,0 +1,274 @@
+# ============================================================================
+# Prometheus Alert Rules – Heartbeat Monitoring Pipeline
+# ============================================================================
+#
+# These rules fire alerts to Alertmanager when edge-case thresholds are
+# exceeded. Alertmanager then routes them to Slack / Email.
+# ============================================================================
+
+groups:
+  # ────────────────────────────────────────────────────────────────────────
+  # Edge Case 1: Heartbeat Delay
+  # ────────────────────────────────────────────────────────────────────────
+  - name: heartbeat_delay
+    rules:
+      - alert: HeartbeatDeviceDelayed
+        expr: heartbeat_device_delay_seconds > 30
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Device {{ $labels.customer_id }} heartbeat delayed"
+          description: >
+            No data received from device {{ $labels.customer_id }}
+            for {{ $value | printf "%.0f" }} seconds.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Edge Case 2: Device Failure
+  # ────────────────────────────────────────────────────────────────────────
+  - name: device_failure
+    rules:
+      - alert: HeartbeatDeviceFailed
+        expr: heartbeat_device_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Device {{ $labels.customer_id }} FAILED"
+          description: >
+            Device {{ $labels.customer_id }} has been marked as FAILED.
+            No heartbeat received for over the failure threshold.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Edge Case 3: Sudden Spike in Readings
+  # ────────────────────────────────────────────────────────────────────────
+  - name: reading_spike
+    rules:
+      - alert: HeartbeatSuddenSpike
+        expr: increase(heartbeat_spike_detected_total[5m]) > 3
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spike storm on device {{ $labels.customer_id }}"
+          description: >
+            Device {{ $labels.customer_id }} has triggered {{ $value }}
+            heart-rate spikes in the last 5 minutes.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Edge Case 4: Data Quality Degradation
+  # ────────────────────────────────────────────────────────────────────────
+  - name: data_quality
+    rules:
+      - alert: HeartbeatDataQualityLow
+        expr: heartbeat_data_quality_score_percent < 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data quality below 90%"
+          description: >
+            The pipeline data quality score has dropped to
+            {{ $value | printf "%.1f" }}%.
+
+      - alert: HeartbeatHighRejectionRate
+        expr: >
+          rate(heartbeat_readings_rejected_total[5m])
+            / (rate(heartbeat_data_quality_valid_total[5m]) + rate(heartbeat_readings_rejected_total[5m]) + 0.001)
+            * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rejection rate > 10% over 5 minutes"
+          description: >
+            More than 10% of readings are being rejected by validation.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Edge Case 5: System Health
+  # ────────────────────────────────────────────────────────────────────────
+  - name: system_health
+    rules:
+      - alert: KafkaProducerDown
+        expr: heartbeat_kafka_producer_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka producer is DOWN"
+          description: "The heartbeat Kafka producer is not connected."
+
+      - alert: KafkaConsumerDown
+        expr: heartbeat_kafka_consumer_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka consumer is DOWN"
+          description: "The heartbeat Kafka consumer is not connected."
+
+      - alert: DatabaseDown
+        expr: heartbeat_database_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL database is DOWN"
+          description: "The heartbeat pipeline cannot reach the database."
+
+      - alert: HighProcessingLatency
+        expr: histogram_quantile(0.95, rate(heartbeat_processing_latency_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 processing latency > 5 seconds"
+          description: >
+            The 95th-percentile end-to-end processing latency is
+            {{ $value | printf "%.2f" }}s.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # DLQ Monitoring
+  # ────────────────────────────────────────────────────────────────────────
+  - name: dlq_monitoring
+    rules:
+      - alert: DLQMessageAccumulation
+        expr: increase(heartbeat_dlq_messages_total[1h]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ accumulating messages ({{ $value }} in 1h)"
+          description: >
+            More than 50 messages have been sent to the Dead Letter Queue
+            in the past hour. Inspect and reprocess.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Anomaly Rate
+  # ────────────────────────────────────────────────────────────────────────
+  - name: anomaly_rate
+    rules:
+      - alert: HighAnomalyRate
+        expr: heartbeat_anomaly_rate_percent > 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anomaly rate above 15%"
+          description: >
+            The overall anomaly rate is {{ $value | printf "%.1f" }}%.
+            This may indicate a widespread device issue.
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Data Quality Framework
+  # ────────────────────────────────────────────────────────────────────────
+  - name: data_quality_overall
+    rules:
+      - alert: DQOverallScoreLow
+        expr: heartbeat_dq_overall_score_percent < 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data quality score below 90%"
+          description: >
+            Overall data quality score is {{ $value | printf "%.1f" }}%.
+            Check the DQ dashboard for dimension breakdown.
+
+      - alert: DQOverallScoreCritical
+        expr: heartbeat_dq_overall_score_percent < 80
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL: Data quality score below 80%"
+          description: >
+            Overall data quality has degraded to {{ $value | printf "%.1f" }}%.
+            Immediate investigation required. Check top failing rules.
+
+  - name: data_quality_dimensions
+    rules:
+      - alert: DQCompletenessLow
+        expr: heartbeat_dq_completeness_score_percent < 95
+        for: 5m
+        labels:
+          severity: warning
+          dimension: completeness
+        annotations:
+          summary: "Completeness score below 95%"
+          description: >
+            Missing required fields detected. Score:
+            {{ $value | printf "%.1f" }}%.
+
+      - alert: DQValidityLow
+        expr: heartbeat_dq_validity_score_percent < 90
+        for: 5m
+        labels:
+          severity: warning
+          dimension: validity
+        annotations:
+          summary: "Validity score below 90%"
+          description: >
+            Invalid data values detected. Score:
+            {{ $value | printf "%.1f" }}%.
+
+      - alert: DQConsistencyLow
+        expr: heartbeat_dq_consistency_score_percent < 90
+        for: 5m
+        labels:
+          severity: warning
+          dimension: consistency
+        annotations:
+          summary: "Consistency score below 90%"
+          description: >
+            Cross-field consistency errors detected. Score:
+            {{ $value | printf "%.1f" }}%.
+
+      - alert: DQTimelinessLow
+        expr: heartbeat_dq_timeliness_score_percent < 85
+        for: 5m
+        labels:
+          severity: warning
+          dimension: timeliness
+        annotations:
+          summary: "Timeliness score below 85%"
+          description: >
+            Stale or future-dated records detected. Score:
+            {{ $value | printf "%.1f" }}%.
+
+  - name: data_quality_circuit_breaker
+    rules:
+      - alert: DQCircuitBreakerTripped
+        expr: increase(heartbeat_dq_circuit_breaker_trips_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DQ circuit breaker tripped"
+          description: >
+            The data quality circuit breaker fired in the last 10 minutes.
+            More than 50% of a batch failed quality checks.
+
+      - alert: DQHighQuarantineRate
+        expr: rate(heartbeat_dq_quarantined_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High quarantine rate"
+          description: >
+            More than 1 row/sec is being permanently quarantined
+            (non-retryable DQ failures). Root-cause investigation needed.
+
+  - name: data_quality_rule_failures
+    rules:
+      - alert: DQRuleFailureSpike
+        expr: sum(rate(heartbeat_dq_rule_failures_total[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DQ rule failure rate > 5/sec"
+          description: >
+            Data quality rule failures are spiking. Check the DQ
+            Grafana dashboard for the top failing rules.

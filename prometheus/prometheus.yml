@@ -1,0 +1,33 @@
+# ============================================================================
+# Prometheus Configuration – Heartbeat Monitoring Pipeline
+# ============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# ─── Alert Rules ─────────────────────────────────────────────────────────
+rule_files:
+  - "alert_rules.yml"
+
+# ─── Alertmanager ────────────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# ─── Scrape Targets ─────────────────────────────────────────────────────
+scrape_configs:
+  # Pipeline application metrics (exposed by prometheus_client on port 8000)
+  - job_name: "heartbeat-pipeline"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+        labels:
+          app: "heartbeat-pipeline"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -17,10 +17,11 @@ services:
     networks:
       - heartbeat_network
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 15s
     restart: unless-stopped
 
   # ─── Apache Kafka ────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ services:
     container_name: heartbeat_postgres
     hostname: postgres
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-heartbeat_db}
       POSTGRES_USER: ${POSTGRES_USER:-heartbeat_user}
@@ -89,15 +90,70 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      prometheus:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: bukes123
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - heartbeat_network
+    restart: unless-stopped
+
+  # ─── Prometheus (Metrics Collection) ─────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: heartbeat_prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - heartbeat_network
+    restart: unless-stopped
+
+  # ─── Alertmanager (Prometheus Alert Routing) ─────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: heartbeat_alertmanager
+    hostname: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    networks:
+      - heartbeat_network
+    restart: unless-stopped
+
+  # ─── Kafka UI (Topic & Consumer Monitoring) ──────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.1
+    container_name: heartbeat_kafka_ui
+    hostname: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: heartbeat-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true"
     networks:
       - heartbeat_network
     restart: unless-stopped
@@ -113,6 +169,8 @@ volumes:
   postgres_data:
     driver: local
   grafana_data:
+    driver: local
+  prometheus_data:
     driver: local
 
 # ─── Networks ────────────────────────────────────────────────────────

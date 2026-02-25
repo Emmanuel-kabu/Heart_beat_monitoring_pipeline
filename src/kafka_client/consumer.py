@@ -2,8 +2,9 @@
 Kafka Consumer Module
 
 Consumes heartbeat readings from a Kafka topic, validates them,
-and persists valid data to PostgreSQL. Supports graceful shutdown,
-batch processing, and automatic offset management.
+and persists valid data to PostgreSQL. Integrates with DLQ for
+failed messages, Prometheus metrics, edge-case detection,
+data quality validation (Great Expectations), and scheduled reporting.
 """
 
 from __future__ import annotations
@@ -19,6 +20,13 @@ from src.config import config
 from src.database.db_handler import DatabaseHandler
 from src.logger import get_logger
 from src.models import HeartbeatReading
+from src.monitoring.metrics import (
+    DB_INSERT_LATENCY,
+    PROCESSING_LATENCY,
+    READINGS_CONSUMED,
+    READINGS_PERSISTED,
+    READINGS_REJECTED,
+)
 from src.validation.validator import HeartbeatValidator
 
 logger = get_logger("kafka.consumer")
@@ -30,7 +38,8 @@ class HeartbeatConsumer:
 
     Reads messages from the configured Kafka topic, validates them,
     and inserts valid readings into PostgreSQL. Supports both
-    single-message and batch processing modes.
+    single-message and batch processing modes. Failed messages
+    are routed to a Dead Letter Queue.
     """
 
     def __init__(
@@ -42,6 +51,10 @@ class HeartbeatConsumer:
         validator: HeartbeatValidator | None = None,
         batch_size: int = 50,
         additional_config: dict | None = None,
+        dlq_producer=None,
+        edge_detector=None,
+        reporter=None,
+        dq_engine=None,
     ):
         """
         Initialize the Kafka consumer.
@@ -54,6 +67,10 @@ class HeartbeatConsumer:
             validator: Data validator. Created if None.
             batch_size: Number of messages to batch before DB insert.
             additional_config: Extra Kafka consumer configuration.
+            dlq_producer: DeadLetterQueueProducer for routing failures.
+            edge_detector: EdgeCaseDetector for monitoring edge cases.
+            reporter: PipelineReporter for daily/weekly stats.
+            dq_engine: DataQualityEngine for comprehensive data quality validation.
         """
         self._bootstrap_servers = bootstrap_servers or config.kafka.bootstrap_servers
         self._topic = topic or config.kafka.topic
@@ -65,6 +82,12 @@ class HeartbeatConsumer:
         self._running = False
         self._consumed_count = 0
         self._processed_count = 0
+
+        # Monitoring integrations
+        self._dlq_producer = dlq_producer
+        self._edge_detector = edge_detector
+        self._reporter = reporter
+        self._dq_engine = dq_engine
 
         # Consumer configuration
         self._config = {
@@ -111,6 +134,7 @@ class HeartbeatConsumer:
     def _deserialize_message(self, msg) -> Optional[HeartbeatReading]:
         """
         Deserialize a Kafka message into a HeartbeatReading.
+        Routes deserialization failures to DLQ.
 
         Args:
             msg: Kafka message object.
@@ -128,11 +152,34 @@ class HeartbeatConsumer:
                 msg.offset(),
                 e,
             )
+            # Route to DLQ
+            if self._dlq_producer:
+                self._dlq_producer.send_to_dlq(
+                    original_value=msg.value(),
+                    reason=f"deserialization_error: {e}",
+                    original_topic=msg.topic(),
+                    original_partition=msg.partition(),
+                    original_offset=msg.offset(),
+                    original_key=msg.key(),
+                )
+            if self._reporter:
+                self._reporter.record_dlq()
+            READINGS_REJECTED.labels(reason="deserialization").inc()
             return None
 
     def _process_batch(self, batch: List[HeartbeatReading]) -> int:
         """
         Validate and persist a batch of readings.
+
+        Pipeline order:
+            1. Edge-case detector per reading
+            2. **Data Quality Engine** (GE + custom rules) → passed / quarantined
+            3. Schema validator (existing HeartbeatValidator)
+            4. Persist valid rows to PostgreSQL
+
+        The DQ engine routes critical failures to DLQ on its own.
+        The pipeline **never breaks** if the DQ engine itself errors;
+        the batch continues unblocked.
 
         Args:
             batch: List of HeartbeatReading instances.
@@ -143,21 +190,99 @@ class HeartbeatConsumer:
         if not batch:
             return 0
 
-        # Validate the batch
-        valid_readings, rejected = self._validator.validate_batch(batch)
+        # Feed edge-case detector per reading
+        for reading in batch:
+            READINGS_CONSUMED.labels(customer_id=reading.customer_id).inc()
+            if self._edge_detector:
+                self._edge_detector.on_reading(reading)
+
+        # ── Data Quality Engine (GE + pandas rules) ────────────────────
+        dq_passed_batch = batch  # default: entire batch passes through
+        if self._dq_engine and config.data_quality.enabled:
+            try:
+                dq_result = self._dq_engine.validate_batch(batch)
+                dq_passed_batch = dq_result.passed_readings
+
+                # Log DQ failures (DLQ routing already done by the engine)
+                if dq_result.failed_rows:
+                    for rf in dq_result.failed_rows:
+                        if rf.reading:
+                            logger.debug(
+                                "DQ rejected %s [rules: %s]",
+                                rf.reading.customer_id,
+                                ", ".join(rf.failed_rules),
+                            )
+                        if self._reporter:
+                            self._reporter.record_quality(valid=False)
+
+                if dq_result.circuit_breaker_tripped:
+                    logger.warning(
+                        "Circuit breaker tripped! Batch failure rate >= %.0f%%. "
+                        "Pipeline continues but quality is critically degraded.",
+                        self._dq_engine._circuit_breaker_threshold * 100,
+                    )
+
+            except Exception as exc:
+                # DQ engine failure must NEVER crash the pipeline
+                logger.error(
+                    "Data quality engine error (batch flows through unblocked): %s",
+                    exc,
+                )
+                dq_passed_batch = batch
+
+        # ── Schema / value validator (existing HeartbeatValidator) ──────
+        valid_readings, rejected = self._validator.validate_batch(dq_passed_batch)
 
         if rejected:
             for reading, error in rejected:
                 logger.warning("Rejected reading: %s — %s", reading.customer_id, error)
+                READINGS_REJECTED.labels(reason="validation").inc()
+                if self._edge_detector:
+                    self._edge_detector.on_invalid(error)
+                if self._reporter:
+                    self._reporter.record_quality(valid=False)
+                # Route to DLQ
+                if self._dlq_producer:
+                    self._dlq_producer.send_to_dlq(
+                        original_value=reading.to_json(),
+                        reason=f"validation_error: {error}",
+                    )
+                    if self._reporter:
+                        self._reporter.record_dlq()
+
+        # Record valid quality
+        for r in valid_readings:
+            if self._edge_detector:
+                self._edge_detector.on_valid()
+            if self._reporter:
+                self._reporter.record_reading()
+                self._reporter.record_quality(valid=True)
+                if r.is_anomaly:
+                    self._reporter.record_anomaly()
 
         # Persist valid readings
         if valid_readings and self._db_handler:
             try:
+                insert_start = time.time()
                 inserted = self._db_handler.insert_readings_batch(valid_readings)
+                insert_elapsed = time.time() - insert_start
+                DB_INSERT_LATENCY.observe(insert_elapsed)
+
                 self._processed_count += inserted
+                for r in valid_readings:
+                    READINGS_PERSISTED.labels(customer_id=r.customer_id).inc()
                 return inserted
             except Exception as e:
                 logger.error("Failed to persist batch: %s", e)
+                # Route all to DLQ on DB failure
+                for reading in valid_readings:
+                    if self._dlq_producer:
+                        self._dlq_producer.send_to_dlq(
+                            original_value=reading.to_json(),
+                            reason=f"db_persist_error: {e}",
+                        )
+                    if self._reporter:
+                        self._reporter.record_dlq()
                 return 0
 
         return len(valid_readings)
@@ -183,16 +308,20 @@ class HeartbeatConsumer:
         self._running = True
         batch: List[HeartbeatReading] = []
 
-        # Set up signal handlers for graceful shutdown
-        original_sigint = signal.getsignal(signal.SIGINT)
-        original_sigterm = signal.getsignal(signal.SIGTERM)
+        # Set up signal handlers for graceful shutdown (only in main thread)
+        import threading
+        _is_main_thread = threading.current_thread() is threading.main_thread()
 
-        def shutdown_handler(signum, frame):
-            logger.info("Shutdown signal received, stopping consumer...")
-            self._running = False
+        if _is_main_thread:
+            original_sigint = signal.getsignal(signal.SIGINT)
+            original_sigterm = signal.getsignal(signal.SIGTERM)
 
-        signal.signal(signal.SIGINT, shutdown_handler)
-        signal.signal(signal.SIGTERM, shutdown_handler)
+            def shutdown_handler(signum, frame):
+                logger.info("Shutdown signal received, stopping consumer...")
+                self._running = False
+
+            signal.signal(signal.SIGINT, shutdown_handler)
+            signal.signal(signal.SIGTERM, shutdown_handler)
 
         logger.info("Consumer started, listening for messages...")
 
@@ -243,9 +372,10 @@ class HeartbeatConsumer:
                 self._consumer.commit(asynchronous=False)
 
         finally:
-            # Restore original signal handlers
-            signal.signal(signal.SIGINT, original_sigint)
-            signal.signal(signal.SIGTERM, original_sigterm)
+            # Restore original signal handlers (only if set)
+            if _is_main_thread:
+                signal.signal(signal.SIGINT, original_sigint)
+                signal.signal(signal.SIGTERM, original_sigterm)
 
             logger.info(
                 "Consumer stopped (consumed=%d, processed=%d)",

@@ -11,8 +11,12 @@ python-dotenv==1.0.0         # Environment variable management
 # ─── Data Processing ────────────────────────────────────────────────────────
 pandas==2.1.4                # Data manipulation and analysis
 
-# ─── Dashboard ──────────────────────────────────────────────────────────────
-streamlit==1.29.0            # Web dashboard framework
+# ─── Data Quality ───────────────────────────────────────────────────────────
+great-expectations>=0.18.0   # Declarative data quality validation framework
+
+# ─── Monitoring & Metrics ───────────────────────────────────────────────────
+prometheus-client==0.21.0    # Prometheus metrics exposition
+
 
 # ─── Testing ────────────────────────────────────────────────────────────────
 pytest==7.4.3                # Testing framework
